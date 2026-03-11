@@ -1,0 +1,45 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-background: #ffffff;
+  --color-foreground: #111827;
+  --color-primary: #3b82f6;
+  --color-secondary: #10b981;
+  --color-accent: #f59e0b;
+  --color-muted: #f3f4f6;
+  --color-border: #e5e7eb;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: 'Outfit', sans-serif;
+  background: var(--color-background);
+  color: var(--color-foreground);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: #dbeafe;
+  color: #111827;
+}
