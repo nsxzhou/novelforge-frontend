@@ -246,6 +246,7 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
       <div className="space-y-6">
         <Card tone="green">
           <SectionTitle
+            eyebrow="Assets"
             title={editorMode.type === 'create' ? '资产创建' : '资产编辑'}
             description="支持世界观、角色、大纲三类资产。"
           />
@@ -285,7 +286,7 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
                 {editorMode.type === 'create' ? '保存资产' : '更新资产'}
               </Button>
               {editorMode.type === 'edit' ? (
-                <Button type="button" variant="secondary" onClick={handleCancelEdit}>
+                <Button type="button" variant="secondary" size="sm" onClick={handleCancelEdit}>
                   取消编辑
                 </Button>
               ) : null}
@@ -294,7 +295,11 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
         </Card>
 
         <Card tone="amber">
-          <SectionTitle title="AI 资产生成" description="输入指令后自动创建资产并返回生成记录。" />
+          <SectionTitle
+            eyebrow="AI Generate"
+            title="AI 资产生成"
+            description="输入指令后自动创建资产并返回生成记录。"
+          />
 
           <form className="space-y-3" onSubmit={generateForm.handleSubmit((v) => generateMutation.mutate(v))}>
             <div>
@@ -338,6 +343,7 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
 
       <Card tone="default">
         <SectionTitle
+          eyebrow="Library"
           title="设定工坊资产列表"
           description="支持过滤、编辑、删除。"
           action={
@@ -364,10 +370,7 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
 
         <div className="space-y-3">
           {sortedAssets.map((asset) => (
-            <article
-              key={asset.id}
-              className="group rounded-lg bg-muted p-4 transition-all duration-200 hover:scale-[1.01]"
-            >
+            <Card key={asset.id} tone="default" interactive className="bg-muted" padding="md">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <h3 className="text-lg font-bold tracking-tight">{asset.title}</h3>
@@ -378,7 +381,7 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
                 <div className="flex gap-2">
                   <Button
                     variant="secondary"
-                    className="h-10 px-3 text-xs"
+                    size="sm"
                     onClick={() => handleEdit(asset)}
                   >
                     <FilePenLine className="mr-1 h-4 w-4" />
@@ -386,7 +389,7 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
                   </Button>
                   <Button
                     variant="danger"
-                    className="h-10 px-3 text-xs"
+                    size="sm"
                     loading={deleteMutation.isPending}
                     onClick={() => deleteMutation.mutate(asset.id)}
                   >
@@ -397,7 +400,7 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
               </div>
 
               <p className="mt-3 whitespace-pre-wrap text-sm text-gray-700">{asset.content}</p>
-            </article>
+            </Card>
           ))}
         </div>
       </Card>

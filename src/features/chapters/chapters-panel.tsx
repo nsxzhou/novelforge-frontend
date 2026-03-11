@@ -170,7 +170,7 @@ export function ChaptersPanel({ projectId }: { projectId: string }) {
     <div className="grid gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
       <div className="space-y-6">
         <Card tone="blue">
-          <SectionTitle title="生成新章节" description="输入标题、序号和创作要求。" />
+          <SectionTitle eyebrow="Chapters" title="生成新章节" description="输入标题、序号和创作要求。" />
 
           <form className="space-y-3" onSubmit={createForm.handleSubmit((v) => createMutation.mutate(v))}>
             <div>
@@ -193,7 +193,11 @@ export function ChaptersPanel({ projectId }: { projectId: string }) {
         </Card>
 
         <Card>
-          <SectionTitle title="章节列表" description="可查看并选择章节做续写/改写/确认。" />
+          <SectionTitle
+            eyebrow="List"
+            title="章节列表"
+            description="可查看并选择章节做续写/改写/确认。"
+          />
           {chaptersQuery.isLoading ? <LoadingState text="加载章节中..." /> : null}
           {chaptersQuery.error ? <ErrorState text={getErrorMessage(chaptersQuery.error)} /> : null}
 
@@ -203,7 +207,7 @@ export function ChaptersPanel({ projectId }: { projectId: string }) {
                 key={chapter.id}
                 type="button"
                 onClick={() => setSelectedChapterId(chapter.id)}
-                className="w-full rounded-md bg-muted px-3 py-2 text-left transition-all duration-200 hover:scale-[1.01] hover:bg-gray-200"
+                className="w-full rounded-md bg-muted px-3 py-2 text-left transition-all duration-200 hover:scale-[1.02] hover:bg-gray-200"
               >
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-bold tracking-tight">
@@ -224,13 +228,14 @@ export function ChaptersPanel({ projectId }: { projectId: string }) {
 
       <Card>
         <SectionTitle
+          eyebrow="Detail"
           title="章节详情与操作"
           description="支持续写、局部改写和当前稿确认。"
           action={
             selectedChapter ? (
               <Button
                 variant="outline"
-                className="h-10 px-3 text-xs"
+                size="sm"
                 loading={confirmMutation.isPending}
                 onClick={() => confirmMutation.mutate(selectedChapter.id)}
               >
@@ -242,7 +247,9 @@ export function ChaptersPanel({ projectId }: { projectId: string }) {
         />
 
         {error ? <ErrorState text={error} /> : null}
-        {operationResult ? <p className="mb-3 rounded-md bg-green-50 p-3 text-sm text-green-700">{operationResult}</p> : null}
+        {operationResult ? (
+          <p className="mb-3 rounded-md bg-green-50 p-3 text-sm font-semibold text-green-700">{operationResult}</p>
+        ) : null}
 
         {!selectedChapterId ? (
           <p className="rounded-md bg-muted p-4 text-sm text-gray-600">请先从左侧选择章节。</p>

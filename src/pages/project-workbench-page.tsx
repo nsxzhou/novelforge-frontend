@@ -21,6 +21,19 @@ const tabLabels: Record<TabKey, string> = {
   chapters: '章节生成器',
 }
 
+function getProjectStatusLabel(status: string): string {
+  switch (status) {
+    case 'draft':
+      return '草稿'
+    case 'active':
+      return '进行中'
+    case 'archived':
+      return '已归档'
+    default:
+      return status
+  }
+}
+
 export function ProjectWorkbenchPage() {
   const navigate = useNavigate()
   const { projectId = '' } = useParams<{ projectId: string }>()
@@ -50,10 +63,10 @@ export function ProjectWorkbenchPage() {
       case 'overview':
         return (
           <section className="grid gap-4 lg:grid-cols-2">
-            <article className="rounded-lg bg-blue-50 p-6">
+            <article className="rounded-lg bg-white p-6">
               <h2 className="text-2xl font-extrabold tracking-tight">{project.title}</h2>
-              <p className="mt-2 text-sm font-semibold uppercase tracking-wider text-blue-600">
-                状态：{project.status}
+              <p className="mt-2 text-sm font-semibold uppercase tracking-wider text-blue-700">
+                状态：{getProjectStatusLabel(project.status)}
               </p>
               <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-gray-700">{project.summary}</p>
             </article>
@@ -82,34 +95,54 @@ export function ProjectWorkbenchPage() {
 
   return (
     <AppShell>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <Button variant="secondary" className="h-10 px-3 text-xs" onClick={() => navigate('/projects')}>
-          <ArrowLeft className="mr-1 h-4 w-4" />
-          返回项目列表
-        </Button>
+      <div className="space-y-6">
+        <section className="relative overflow-hidden rounded-lg bg-white p-6 md:p-8">
+          {/* 使用几何装饰增强 Flat Design 的版面层次，同时保持中等视觉强度。 */}
+          <div className="flat-deco-dot -right-10 -top-10 h-24 w-24 bg-blue-100/60" />
+          <div className="flat-deco-square bottom-2 right-16 h-10 w-10 bg-emerald-100/70" />
 
-        <div className="flex flex-wrap gap-2">
-          {(Object.keys(tabLabels) as TabKey[]).map((tab) => (
-            <button
-              key={tab}
-              className={`rounded-md px-3 py-2 text-xs font-semibold uppercase tracking-wide transition-all duration-200 ${
-                activeTab === tab
-                  ? 'bg-primary text-white'
-                  : 'bg-muted text-gray-700 hover:scale-105 hover:bg-gray-200'
-              }`}
-              onClick={() => setActiveTab(tab)}
-              type="button"
-            >
-              {tabLabels[tab]}
-            </button>
-          ))}
+          <div className="relative space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <Button variant="secondary" size="sm" onClick={() => navigate('/projects')}>
+                <ArrowLeft className="mr-1 h-4 w-4" />
+                返回项目列表
+              </Button>
+              <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">Project Workbench</p>
+            </div>
+
+            <div>
+              <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
+                {projectQuery.data?.title ?? '项目工作台'}
+              </h1>
+              <p className="mt-2 text-sm text-gray-600">
+                统一管理设定资产、对话微调与章节生成流程，保持创作上下文连续。
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {(Object.keys(tabLabels) as TabKey[]).map((tab) => (
+                <button
+                  key={tab}
+                  className={`rounded-md px-3 py-2 text-xs font-semibold uppercase tracking-wide transition-all duration-200 ${
+                    activeTab === tab
+                      ? 'bg-primary text-white'
+                      : 'bg-muted text-gray-700 hover:scale-105 hover:bg-gray-200'
+                  }`}
+                  onClick={() => setActiveTab(tab)}
+                  type="button"
+                >
+                  {tabLabels[tab]}
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+        <div className="space-y-4">
+          {projectQuery.isLoading ? <LoadingState text="加载项目中..." /> : null}
+          {projectQuery.error ? <ErrorState text={String((projectQuery.error as Error).message)} /> : null}
+          {projectQuery.data ? content : null}
         </div>
       </div>
-
-      {projectQuery.isLoading ? <LoadingState text="加载项目中..." /> : null}
-      {projectQuery.error ? <ErrorState text={String((projectQuery.error as Error).message)} /> : null}
-
-      {projectQuery.data ? content : null}
     </AppShell>
   )
 }

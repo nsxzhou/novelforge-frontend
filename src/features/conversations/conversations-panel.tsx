@@ -156,7 +156,11 @@ export function ConversationsPanel({
     <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
       <div className="space-y-6">
         <Card tone="blue">
-          <SectionTitle title="发起微调对话" description="支持项目和资产的对话微调。" />
+          <SectionTitle
+            eyebrow="Conversation"
+            title="发起微调对话"
+            description="支持项目和资产的对话微调。"
+          />
 
           <form className="space-y-3" onSubmit={startForm.handleSubmit(handleStartSubmit)}>
             <div>
@@ -202,7 +206,7 @@ export function ConversationsPanel({
         </Card>
 
         <Card>
-          <SectionTitle title="历史会话" />
+          <SectionTitle eyebrow="History" title="历史会话" />
 
           {conversationsQuery.isLoading ? <LoadingState text="加载会话中..." /> : null}
           {conversationsQuery.error ? <ErrorState text={getErrorMessage(conversationsQuery.error)} /> : null}
@@ -211,7 +215,7 @@ export function ConversationsPanel({
             {conversations.map((conversation) => (
               <button
                 key={conversation.id}
-                className="w-full rounded-md bg-muted px-3 py-2 text-left text-sm transition-all duration-200 hover:scale-[1.01] hover:bg-gray-200"
+                className="w-full rounded-md bg-muted px-3 py-2 text-left text-sm transition-all duration-200 hover:scale-[1.02] hover:bg-gray-200"
                 onClick={() => setSelectedConversation(conversation)}
                 type="button"
               >
@@ -231,13 +235,14 @@ export function ConversationsPanel({
 
       <Card>
         <SectionTitle
+          eyebrow="Detail"
           title="会话详情"
           description="助手建议会出现在 pending_suggestion，确认后写回项目或资产。"
           action={
             selectedConversation?.pending_suggestion ? (
               <Button
                 variant="outline"
-                className="h-10 px-3 text-xs"
+                size="sm"
                 loading={confirmMutation.isPending}
                 onClick={() => confirmMutation.mutate(selectedConversation.id)}
               >
@@ -256,7 +261,7 @@ export function ConversationsPanel({
           <>
             <div className="space-y-2">
               {selectedConversation.messages.map((message) => (
-                <article key={message.id} className="rounded-md bg-muted p-3 text-sm">
+                <article key={message.id} className="rounded-md bg-muted p-3 text-sm leading-6">
                   <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-blue-600">{message.role}</p>
                   <p className="whitespace-pre-wrap text-gray-800">{message.content}</p>
                 </article>

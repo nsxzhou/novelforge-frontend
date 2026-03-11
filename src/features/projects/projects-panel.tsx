@@ -121,6 +121,7 @@ export function ProjectsPanel() {
     <div className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
       <Card tone="blue" className="h-fit">
         <SectionTitle
+          eyebrow="Project"
           title={editorMode.type === 'create' ? '创建项目' : '编辑项目'}
           description="V1 项目仅要求书名、简介与状态。"
         />
@@ -158,7 +159,7 @@ export function ProjectsPanel() {
               {editorMode.type === 'create' ? '创建项目' : '保存修改'}
             </Button>
             {editorMode.type === 'edit' ? (
-              <Button type="button" variant="secondary" onClick={onCancelEdit}>
+              <Button type="button" variant="secondary" size="sm" onClick={onCancelEdit}>
                 取消编辑
               </Button>
             ) : null}
@@ -167,7 +168,11 @@ export function ProjectsPanel() {
       </Card>
 
       <Card tone="default">
-        <SectionTitle title="项目列表" description="创建后可进入项目工作台继续设定和章节创作。" />
+        <SectionTitle
+          eyebrow="Projects"
+          title="项目列表"
+          description="创建后可进入项目工作台继续设定和章节创作。"
+        />
 
         {projectsQuery.isLoading ? <LoadingState text="正在加载项目..." /> : null}
         {projectsQuery.error ? <ErrorState text={getErrorMessage(projectsQuery.error)} /> : null}
@@ -178,10 +183,7 @@ export function ProjectsPanel() {
 
         <div className="space-y-3">
           {projectsQuery.data?.map((project) => (
-            <article
-              key={project.id}
-              className="group rounded-lg bg-muted p-4 transition-all duration-200 hover:scale-[1.01]"
-            >
+            <Card key={project.id} tone="default" interactive className="bg-muted" padding="md">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="space-y-1">
                   <h3 className="text-lg font-bold tracking-tight">{project.title}</h3>
@@ -191,12 +193,12 @@ export function ProjectsPanel() {
                 </div>
 
                 <div className="flex gap-2">
-                  <Button variant="secondary" className="h-10 px-3 text-xs" onClick={() => onEdit(project)}>
+                  <Button variant="secondary" size="sm" onClick={() => onEdit(project)}>
                     <PencilLine className="mr-1 h-4 w-4" />
                     编辑
                   </Button>
                   <Link to={`/projects/${project.id}`}>
-                    <Button className="h-10 px-3 text-xs">
+                    <Button size="sm">
                       <BookOpenText className="mr-1 h-4 w-4" />
                       进入
                     </Button>
@@ -205,7 +207,7 @@ export function ProjectsPanel() {
               </div>
 
               <p className="mt-3 whitespace-pre-wrap text-sm text-gray-700">{project.summary}</p>
-            </article>
+            </Card>
           ))}
         </div>
       </Card>

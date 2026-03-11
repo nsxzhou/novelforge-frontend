@@ -25,16 +25,34 @@ body {
   font-family: 'Outfit', sans-serif;
   background: var(--color-background);
   color: var(--color-foreground);
+  line-height: 1.5;
+  letter-spacing: 0.01em;
 }
 
 * {
   box-sizing: border-box;
 }
 
-button:focus-visible,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin: 0;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+p {
+  margin: 0;
+}
+
 input:focus-visible,
 textarea:focus-visible,
-select:focus-visible {
+select:focus-visible,
+a:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
@@ -42,4 +60,14 @@ select:focus-visible {
 ::selection {
   background: #dbeafe;
   color: #111827;
+}
+
+@layer utilities {
+  .flat-deco-dot {
+    @apply absolute rounded-full bg-white/10;
+  }
+
+  .flat-deco-square {
+    @apply absolute rotate-12 bg-white/10;
+  }
 }
