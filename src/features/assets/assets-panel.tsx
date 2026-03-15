@@ -15,6 +15,8 @@ import { Input, Select, Textarea } from '@/shared/ui/input'
 import { SectionTitle } from '@/shared/ui/section-title'
 import { StreamingText } from '@/shared/ui/streaming-text'
 import { getErrorMessage } from '@/shared/lib/error-message'
+import { StructuredAssetEditor } from './components/structured-asset-editor'
+import { AssetContentDisplay } from './components/asset-content-display'
 
 const assetSchema = z.object({
   type: z.enum(['worldbuilding', 'character', 'outline']),
@@ -61,6 +63,8 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
 
   const assetForm = useForm<AssetFormValue>({ resolver: zodResolver(assetSchema), defaultValues: defaultAssetValue })
   const generateForm = useForm<GenerateFormValue>({ resolver: zodResolver(generateSchema), defaultValues: defaultGenerateValue })
+  const watchedType = assetForm.watch('type')
+  const supportsStructured = watchedType === 'character' || watchedType === 'worldbuilding'
 
   const refreshAssets = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: queryKeys.assets(projectId, filterType) })
@@ -133,7 +137,15 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-foreground">资产内容</label>
-              <Textarea rows={6} {...assetForm.register('content')} placeholder="资产正文内容" />
+              {supportsStructured ? (
+                <StructuredAssetEditor
+                  assetType={watchedType}
+                  content={assetForm.getValues('content')}
+                  onChange={(val) => assetForm.setValue('content', val, { shouldValidate: true })}
+                />
+              ) : (
+                <Textarea rows={6} {...assetForm.register('content')} placeholder="资产正文内容" />
+              )}
               {assetForm.formState.errors.content ? <p className="mt-1 text-xs font-medium text-red-600">{assetForm.formState.errors.content.message}</p> : null}
             </div>
             <div className="flex flex-wrap gap-2">
@@ -194,7 +206,7 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
                   <Button variant="danger" size="sm" loading={deleteMutation.isPending} onClick={() => deleteMutation.mutate(asset.id)}><Trash2 className="mr-1 h-4 w-4" />删除</Button>
                 </div>
               </div>
-              <p className="mt-3 whitespace-pre-wrap text-sm text-muted-foreground">{asset.content}</p>
+              <AssetContentDisplay content={asset.content} assetType={asset.type} />
             </Card>
           ))}
         </div>

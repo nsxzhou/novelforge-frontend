@@ -95,3 +95,18 @@ export function rewriteChapterStream(
 ): void {
   streamRequest(`/chapters/${chapterId}/rewrite/stream`, input, callbacks, signal)
 }
+
+export type UpdateChapterInput = {
+  title?: string
+  content?: string
+}
+
+export function updateChapter(
+  chapterId: string,
+  input: UpdateChapterInput,
+): Promise<Chapter> {
+  return request<Chapter>(`/chapters/${chapterId}`, {
+    method: 'PUT',
+    body: input,
+  })
+}

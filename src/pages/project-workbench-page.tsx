@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { Download } from 'lucide-react'
 import { getProject } from '@/shared/api/projects'
 import { listAssets } from '@/shared/api/assets'
+import { exportProject } from '@/shared/api/export'
 import { queryKeys } from '@/shared/api/queries'
 import { LoadingState, ErrorState } from '@/shared/ui/feedback'
 import { Tabs } from '@/shared/ui/tabs'
@@ -37,6 +39,8 @@ function getProjectStatusLabel(status: string): string {
 export function ProjectWorkbenchPage() {
   const { projectId = '' } = useParams<{ projectId: string }>()
   const [activeTab, setActiveTab] = useState<TabKey>('overview')
+  const [exportLoading, setExportLoading] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
 
   const projectQuery = useQuery({
     queryKey: queryKeys.project(projectId),
@@ -49,6 +53,19 @@ export function ProjectWorkbenchPage() {
     queryFn: () => listAssets({ projectId, limit: 200, offset: 0 }),
     enabled: Boolean(projectId),
   })
+
+  async function handleExport(format: 'md' | 'txt') {
+    if (!projectId) return
+    setExportLoading(true)
+    setExportError(null)
+    try {
+      await exportProject(projectId, format)
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : '导出失败')
+    } finally {
+      setExportLoading(false)
+    }
+  }
 
   const content = useMemo(() => {
     if (!projectQuery.data) {
@@ -123,12 +140,42 @@ export function ProjectWorkbenchPage() {
               Workbench
             </span>
           </div>
+          <div className="relative inline-block">
+            <button
+              type="button"
+              disabled={exportLoading}
+              className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted disabled:opacity-50"
+              onClick={() => handleExport('md')}
+            >
+              <Download className="h-4 w-4" />
+              {exportLoading ? '导出中...' : '导出'}
+            </button>
+            {!exportLoading ? (
+              <div className="absolute right-0 top-full z-10 mt-1 hidden w-36 rounded-lg border border-border bg-card py-1 shadow-lg group-hover:block [button:focus+&]:block">
+                <button
+                  type="button"
+                  className="w-full px-3 py-1.5 text-left text-sm hover:bg-muted"
+                  onClick={() => handleExport('md')}
+                >
+                  Markdown (.md)
+                </button>
+                <button
+                  type="button"
+                  className="w-full px-3 py-1.5 text-left text-sm hover:bg-muted"
+                  onClick={() => handleExport('txt')}
+                >
+                  纯文本 (.txt)
+                </button>
+              </div>
+            ) : null}
+          </div>
         </div>
 
         <Tabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab} />
       </div>
 
       <div className="space-y-6">
+        {exportError ? <ErrorState text={exportError} /> : null}
         {projectQuery.isLoading ? <LoadingState text="加载项目中..." /> : null}
         {projectQuery.error ? <ErrorState text={String((projectQuery.error as Error).message)} /> : null}
         {projectQuery.data ? content : null}

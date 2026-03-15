@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CheckCircle2, FileClock, RefreshCcw, Square, WandSparkles } from 'lucide-react'
+import { CheckCircle2, FileClock, RefreshCcw, Save, Square, WandSparkles } from 'lucide-react'
 import {
   confirmChapter,
   createChapterStream,
@@ -11,6 +11,7 @@ import {
   getChapter,
   listChapters,
   rewriteChapterStream,
+  updateChapter,
 } from '@/shared/api/chapters'
 import type { ChapterGenerationResponse } from '@/shared/api/chapters'
 import { queryKeys } from '@/shared/api/queries'
@@ -22,6 +23,8 @@ import { Input, Textarea } from '@/shared/ui/input'
 import { SectionTitle } from '@/shared/ui/section-title'
 import { StreamingText } from '@/shared/ui/streaming-text'
 import { getErrorMessage } from '@/shared/lib/error-message'
+import { TiptapEditor, type TextSelection } from './components/tiptap-editor'
+import { RewritePopover } from './components/rewrite-popover'
 
 const createSchema = z.object({
   title: z.string().trim().min(1, '请填写章节标题'),
@@ -50,6 +53,11 @@ export function ChaptersPanel({ projectId }: { projectId: string }) {
   const [streamingContent, setStreamingContent] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
+
+  // Tiptap editor state
+  const [editedContent, setEditedContent] = useState<string | null>(null)
+  const [selection, setSelection] = useState<TextSelection | null>(null)
+  const [showRewritePopover, setShowRewritePopover] = useState(false)
 
   const createForm = useForm<CreateFormValue>({
     resolver: zodResolver(createSchema),
@@ -100,6 +108,7 @@ export function ChaptersPanel({ projectId }: { projectId: string }) {
       onDone: async (result: ChapterGenerationResponse) => {
         setIsStreaming(false)
         setSelectedChapterId(result.chapter.id)
+        setEditedContent(null)
         setOperationResult(`完成，耗时 ${result.generation_record.duration_millis} ms。`)
         onDoneExtra?.(result)
         await refreshChapters()
@@ -174,11 +183,50 @@ export function ChaptersPanel({ projectId }: { projectId: string }) {
     },
   })
 
+  const saveMutation = useMutation({
+    mutationFn: ({ chapterId, content }: { chapterId: string; content: string }) =>
+      updateChapter(chapterId, { content }),
+    onSuccess: async () => {
+      setEditedContent(null)
+      setOperationResult('内容已保存。')
+      setError(null)
+      await refreshChapters()
+    },
+    onError: (mutationError) => {
+      setError(getErrorMessage(mutationError))
+    },
+  })
+
   const selectedChapter: Chapter | null = chapterDetailQuery.data ?? null
   const chapters = useMemo(
     () => [...(chaptersQuery.data ?? [])].sort((a, b) => a.ordinal - b.ordinal),
     [chaptersQuery.data],
   )
+
+  const isDraft = selectedChapter?.status === 'draft'
+  const hasUnsavedChanges = editedContent !== null && editedContent !== selectedChapter?.content
+
+  function handleContentChange(text: string) {
+    setEditedContent(text)
+  }
+
+  function handleSelectionChange(sel: TextSelection | null) {
+    setSelection(sel)
+  }
+
+  function handleSave() {
+    if (!selectedChapterId || editedContent === null) return
+    saveMutation.mutate({ chapterId: selectedChapterId, content: editedContent })
+  }
+
+  function handleRewriteComplete(result: ChapterGenerationResponse) {
+    setShowRewritePopover(false)
+    setSelection(null)
+    setEditedContent(null)
+    setSelectedChapterId(result.chapter.id)
+    setOperationResult(`改写完成，耗时 ${result.generation_record.duration_millis} ms。`)
+    refreshChapters()
+  }
 
   return (
     <div className="grid gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
@@ -220,7 +268,12 @@ export function ChaptersPanel({ projectId }: { projectId: string }) {
               <button
                 key={chapter.id}
                 type="button"
-                onClick={() => setSelectedChapterId(chapter.id)}
+                onClick={() => {
+                  setSelectedChapterId(chapter.id)
+                  setEditedContent(null)
+                  setSelection(null)
+                  setShowRewritePopover(false)
+                }}
                 className="w-full rounded-md bg-muted px-3 py-2 text-left transition-all duration-200 hover:scale-[1.02] hover:bg-muted"
               >
                 <div className="flex items-center justify-between">
@@ -244,13 +297,24 @@ export function ChaptersPanel({ projectId }: { projectId: string }) {
         <SectionTitle
           eyebrow="Detail"
           title="章节详情与操作"
-          description="支持续写、局部改写和当前稿确认。"
+          description="支持编辑、续写、局部改写和当前稿确认。"
           action={
             <div className="flex gap-2">
               {isStreaming ? (
                 <Button variant="danger" size="sm" onClick={cancelStream}>
                   <Square className="mr-1 h-4 w-4" />
                   取消生成
+                </Button>
+              ) : null}
+              {selectedChapter && isDraft && hasUnsavedChanges && !isStreaming ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  loading={saveMutation.isPending}
+                  onClick={handleSave}
+                >
+                  <Save className="mr-1 h-4 w-4" />
+                  保存
                 </Button>
               ) : null}
               {selectedChapter && !isStreaming ? (
@@ -289,9 +353,14 @@ export function ChaptersPanel({ projectId }: { projectId: string }) {
             <article className="rounded-lg bg-muted p-4">
               <div className="mb-2 flex items-center justify-between">
                 <h3 className="text-lg font-extrabold tracking-tight">{selectedChapter.title}</h3>
-                <span className="text-xs font-semibold uppercase tracking-wide text-accent">
-                  {selectedChapter.status === 'confirmed' ? '已确认' : '草稿'}
-                </span>
+                <div className="flex items-center gap-2">
+                  {hasUnsavedChanges ? (
+                    <span className="text-xs font-medium text-amber-600">未保存</span>
+                  ) : null}
+                  <span className="text-xs font-semibold uppercase tracking-wide text-accent">
+                    {selectedChapter.status === 'confirmed' ? '已确认' : '草稿'}
+                  </span>
+                </div>
               </div>
 
               {selectedChapter.current_draft_id ? (
@@ -308,8 +377,38 @@ export function ChaptersPanel({ projectId }: { projectId: string }) {
                 </div>
               ) : null}
 
-              <p className="whitespace-pre-wrap text-sm leading-7 text-foreground">{selectedChapter.content}</p>
+              <TiptapEditor
+                content={selectedChapter.content}
+                readOnly={!isDraft}
+                onContentChange={handleContentChange}
+                onSelectionChange={handleSelectionChange}
+              />
             </article>
+
+            {/* Rewrite from selection */}
+            {selection && isDraft && !showRewritePopover ? (
+              <div className="mt-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowRewritePopover(true)}
+                >
+                  <WandSparkles className="mr-1 h-4 w-4" />
+                  改写选中文本
+                </Button>
+              </div>
+            ) : null}
+
+            {showRewritePopover && selection && selectedChapterId ? (
+              <div className="mt-3">
+                <RewritePopover
+                  chapterId={selectedChapterId}
+                  selectedText={selection.text}
+                  onClose={() => setShowRewritePopover(false)}
+                  onComplete={handleRewriteComplete}
+                />
+              </div>
+            ) : null}
 
             <div className="mt-4 grid gap-4 lg:grid-cols-2">
               <form
@@ -332,7 +431,7 @@ export function ChaptersPanel({ projectId }: { projectId: string }) {
                 <Textarea
                   rows={3}
                   {...rewriteForm.register('target_text')}
-                  placeholder="粘贴需要改写的原文"
+                  placeholder="粘贴需要改写的原文（或在编辑器中选中文本）"
                 />
                 <Textarea rows={3} {...rewriteForm.register('instruction')} placeholder="描述改写要求" />
                 <Button type="submit" disabled={isStreaming}>

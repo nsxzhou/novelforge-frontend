@@ -1,0 +1,114 @@
+import { useState, useRef } from 'react'
+import { Button } from '@/shared/ui/button'
+import { Textarea } from '@/shared/ui/input'
+import { StreamingText } from '@/shared/ui/streaming-text'
+import { rewriteChapterStream } from '@/shared/api/chapters'
+import type { ChapterGenerationResponse } from '@/shared/api/chapters'
+import { WandSparkles, Square, X } from 'lucide-react'
+
+type RewritePopoverProps = {
+  chapterId: string
+  selectedText: string
+  onClose: () => void
+  onComplete: (result: ChapterGenerationResponse) => void
+}
+
+export function RewritePopover({
+  chapterId,
+  selectedText,
+  onClose,
+  onComplete,
+}: RewritePopoverProps) {
+  const [instruction, setInstruction] = useState('')
+  const [streamingContent, setStreamingContent] = useState('')
+  const [isStreaming, setIsStreaming] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!instruction.trim()) return
+
+    setStreamingContent('')
+    setIsStreaming(true)
+    setError(null)
+    abortRef.current = new AbortController()
+
+    rewriteChapterStream(
+      chapterId,
+      { target_text: selectedText, instruction: instruction.trim() },
+      {
+        onContent: (chunk: string) => setStreamingContent((prev) => prev + chunk),
+        onDone: (result: ChapterGenerationResponse) => {
+          setIsStreaming(false)
+          onComplete(result)
+        },
+        onError: (errMsg: string) => {
+          setIsStreaming(false)
+          setError(errMsg)
+        },
+      },
+      abortRef.current.signal,
+    )
+  }
+
+  function handleCancel() {
+    abortRef.current?.abort()
+    setIsStreaming(false)
+  }
+
+  return (
+    <div className="rounded-xl border border-amber-500/20 bg-amber-50 p-4 shadow-lg">
+      <div className="mb-3 flex items-center justify-between">
+        <h4 className="text-sm font-extrabold uppercase tracking-wide text-amber-600">
+          改写选中文本
+        </h4>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded p-1 text-muted-foreground hover:text-foreground"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="mb-3 rounded-md bg-amber-100/50 p-2">
+        <p className="text-xs font-medium text-amber-700">选中内容：</p>
+        <p className="mt-1 text-sm text-amber-900 line-clamp-3">{selectedText}</p>
+      </div>
+
+      <form className="space-y-3" onSubmit={handleSubmit}>
+        <Textarea
+          rows={3}
+          value={instruction}
+          onChange={(e) => setInstruction(e.target.value)}
+          placeholder="描述改写要求"
+          disabled={isStreaming}
+        />
+        <div className="flex gap-2">
+          <Button type="submit" disabled={isStreaming || !instruction.trim()}>
+            <WandSparkles className="mr-1 h-4 w-4" />
+            执行改写
+          </Button>
+          {isStreaming ? (
+            <Button type="button" variant="danger" size="sm" onClick={handleCancel}>
+              <Square className="mr-1 h-4 w-4" />
+              取消
+            </Button>
+          ) : null}
+        </div>
+      </form>
+
+      {isStreaming ? (
+        <div className="mt-3 rounded-md bg-white/60 p-3">
+          <p className="mb-1 text-xs font-medium text-amber-600">AI 改写中</p>
+          <StreamingText content={streamingContent} isStreaming={isStreaming} />
+        </div>
+      ) : null}
+
+      {error ? (
+        <p className="mt-3 rounded-md bg-red-50 p-2 text-sm text-red-600">{error}</p>
+      ) : null}
+    </div>
+  )
+}
