@@ -7,4 +7,6 @@ export const queryKeys = {
   conversation: (conversationId: string) => ['conversation', conversationId] as const,
   chapters: (projectId: string) => ['chapters', projectId] as const,
   chapter: (chapterId: string) => ['chapter', chapterId] as const,
+  llmProviders: ['llmProviders'] as const,
+  prompts: (projectId: string) => ['prompts', projectId] as const,
 }

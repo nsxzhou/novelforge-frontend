@@ -1,4 +1,5 @@
 import { request } from '@/shared/api/http-client'
+import { streamRequest, type SSECallbacks } from '@/shared/api/sse-client'
 import type { Asset, Conversation, Project } from '@/shared/api/types'
 
 type ConversationListResponse = { conversations: Conversation[] }
@@ -63,4 +64,22 @@ export function listConversations(params: {
   if (params.offset !== undefined) search.set('offset', String(params.offset))
   const path = `/projects/${params.projectId}/conversations?${search.toString()}`
   return request<ConversationListResponse>(path).then((r) => r.conversations)
+}
+
+export function startConversationStream(
+  projectId: string,
+  input: StartConversationInput,
+  callbacks: SSECallbacks<Conversation>,
+  signal?: AbortSignal,
+): void {
+  streamRequest(`/projects/${projectId}/conversations/stream`, input, callbacks, signal)
+}
+
+export function replyConversationStream(
+  conversationId: string,
+  input: ReplyConversationInput,
+  callbacks: SSECallbacks<Conversation>,
+  signal?: AbortSignal,
+): void {
+  streamRequest(`/conversations/${conversationId}/messages/stream`, input, callbacks, signal)
 }

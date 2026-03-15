@@ -1,8 +1,11 @@
 import { request } from '@/shared/api/http-client'
+import { streamRequest, type SSECallbacks } from '@/shared/api/sse-client'
 import type { Chapter, GenerationRecord } from '@/shared/api/types'
 
+const ANONYMOUS_USER_ID = '00000000-0000-0000-0000-000000000000'
+
 type ChapterListResponse = { chapters: Chapter[] }
-type ChapterGenerationResponse = { chapter: Chapter; generation_record: GenerationRecord }
+export type ChapterGenerationResponse = { chapter: Chapter; generation_record: GenerationRecord }
 
 export type CreateChapterInput = {
   title: string
@@ -57,11 +60,38 @@ export function rewriteChapter(
   })
 }
 
-export function confirmChapter(chapterId: string, userId: string): Promise<Chapter> {
+export function confirmChapter(chapterId: string): Promise<Chapter> {
   return request<Chapter>(`/chapters/${chapterId}/confirm`, {
     method: 'POST',
     headers: {
-      'X-User-ID': userId,
+      'X-User-ID': ANONYMOUS_USER_ID,
     },
   })
+}
+
+export function createChapterStream(
+  projectId: string,
+  input: CreateChapterInput,
+  callbacks: SSECallbacks<ChapterGenerationResponse>,
+  signal?: AbortSignal,
+): void {
+  streamRequest(`/projects/${projectId}/chapters/stream`, input, callbacks, signal)
+}
+
+export function continueChapterStream(
+  chapterId: string,
+  input: ContinueChapterInput,
+  callbacks: SSECallbacks<ChapterGenerationResponse>,
+  signal?: AbortSignal,
+): void {
+  streamRequest(`/chapters/${chapterId}/continue/stream`, input, callbacks, signal)
+}
+
+export function rewriteChapterStream(
+  chapterId: string,
+  input: RewriteChapterInput,
+  callbacks: SSECallbacks<ChapterGenerationResponse>,
+  signal?: AbortSignal,
+): void {
+  streamRequest(`/chapters/${chapterId}/rewrite/stream`, input, callbacks, signal)
 }

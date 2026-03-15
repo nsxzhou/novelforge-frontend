@@ -84,3 +84,22 @@ export type Conversation = {
   created_at: string
   updated_at: string
 }
+
+export type LLMProvider = {
+  id: string
+  provider: string
+  model: string
+  base_url: string
+  api_key: string
+  timeout_seconds: number
+  priority: number
+  enabled: boolean
+}
+
+export type PromptTemplate = {
+  capability: string
+  system: string
+  user: string
+  is_override: boolean
+  available_variables: string[]
+}

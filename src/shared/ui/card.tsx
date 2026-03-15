@@ -1,22 +1,16 @@
 import type { PropsWithChildren } from 'react'
 import { cn } from '@/shared/lib/cn'
 
+type CardVariant = 'default' | 'elevated' | 'featured'
+
 type CardProps = PropsWithChildren<{
   className?: string
-  tone?: 'default' | 'blue' | 'green' | 'amber'
+  variant?: CardVariant
   interactive?: boolean
   padding?: 'md' | 'lg'
 }>
 
-const toneClassMap = {
-  default: 'bg-white/95',
-  blue: 'bg-blue-50',
-  green: 'bg-green-50',
-  amber: 'bg-amber-50',
-}
-
 const paddingClassMap = {
-  // 统一卡片内边距，保证页面在不同区块下有稳定节奏。
   md: 'p-6',
   lg: 'p-8',
 }
@@ -24,16 +18,34 @@ const paddingClassMap = {
 export function Card({
   children,
   className,
-  tone = 'default',
+  variant = 'default',
   interactive = false,
   padding = 'md',
 }: CardProps) {
+  if (variant === 'featured') {
+    return (
+      <div className={cn('rounded-xl bg-gradient-to-br from-accent via-accent-secondary to-accent p-[2px]', className)}>
+        <section
+          className={cn(
+            'h-full w-full rounded-[calc(16px-2px)] bg-card',
+            interactive && 'cursor-pointer transition-shadow duration-200 hover:shadow-md',
+            paddingClassMap[padding],
+          )}
+        >
+          {children}
+        </section>
+      </div>
+    )
+  }
+
   return (
     <section
       className={cn(
-        'rounded-lg transition-all duration-200',
-        interactive && 'cursor-pointer hover:scale-[1.02]',
-        toneClassMap[tone],
+        'rounded-xl border border-border bg-card transition-all duration-200',
+        variant === 'elevated' && 'shadow-md',
+        variant === 'default' && 'shadow-sm',
+        interactive &&
+          'cursor-pointer hover:shadow-md hover:bg-gradient-to-br hover:from-accent/[0.02] hover:to-transparent',
         paddingClassMap[padding],
         className,
       )}

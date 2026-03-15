@@ -1,8 +1,9 @@
 import { request } from '@/shared/api/http-client'
+import { streamRequest, type SSECallbacks } from '@/shared/api/sse-client'
 import type { Asset, AssetType, GenerationRecord } from '@/shared/api/types'
 
 type AssetListResponse = { assets: Asset[] }
-type AssetGenerationResponse = { asset: Asset; generation_record: GenerationRecord }
+export type AssetGenerationResponse = { asset: Asset; generation_record: GenerationRecord }
 
 export type UpsertAssetInput = {
   type: AssetType
@@ -61,4 +62,13 @@ export function generateAsset(
     method: 'POST',
     body: input,
   })
+}
+
+export function generateAssetStream(
+  projectId: string,
+  input: GenerateAssetInput,
+  callbacks: SSECallbacks<AssetGenerationResponse>,
+  signal?: AbortSignal,
+): void {
+  streamRequest(`/projects/${projectId}/assets/generate/stream`, input, callbacks, signal)
 }

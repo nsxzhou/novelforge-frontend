@@ -1,14 +1,14 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { MessagesSquare, SendHorizontal, ShieldCheck } from 'lucide-react'
+import { MessagesSquare, SendHorizontal, ShieldCheck, Square } from 'lucide-react'
 import {
   confirmConversation,
   listConversations,
-  replyConversation,
-  startConversation,
+  replyConversationStream,
+  startConversationStream,
 } from '@/shared/api/conversations'
 import { queryKeys } from '@/shared/api/queries'
 import type { Asset, Conversation, Project } from '@/shared/api/types'
@@ -17,6 +17,7 @@ import { Card } from '@/shared/ui/card'
 import { ErrorState, LoadingState } from '@/shared/ui/feedback'
 import { Select, Textarea } from '@/shared/ui/input'
 import { SectionTitle } from '@/shared/ui/section-title'
+import { StreamingText } from '@/shared/ui/streaming-text'
 import { getErrorMessage } from '@/shared/lib/error-message'
 
 const startSchema = z.object({
@@ -43,6 +44,9 @@ export function ConversationsPanel({
   const queryClient = useQueryClient()
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [streamingContent, setStreamingContent] = useState('')
+  const [isStreaming, setIsStreaming] = useState(false)
+  const abortRef = useRef<AbortController | null>(null)
 
   const startForm = useForm<StartFormValue>({
     resolver: zodResolver(startSchema),
@@ -55,9 +59,7 @@ export function ConversationsPanel({
 
   const replyForm = useForm<ReplyFormValue>({
     resolver: zodResolver(replySchema),
-    defaultValues: {
-      message: '',
-    },
+    defaultValues: { message: '' },
   })
 
   const targetType = startForm.watch('target_type')
@@ -88,34 +90,79 @@ export function ConversationsPanel({
       }),
   })
 
-  const startMutation = useMutation({
-    mutationFn: (input: StartFormValue) => startConversation(projectId, input),
-    onSuccess: async (conversation) => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.conversations(projectId, targetType, inputTargetId(conversation)) })
-      setSelectedConversation(conversation)
-      replyForm.reset({ message: '' })
-      setError(null)
-    },
-    onError: (mutationError) => {
-      setError(getErrorMessage(mutationError))
-    },
-  })
+  const refreshConversations = useCallback(async (conv: Conversation) => {
+    await queryClient.invalidateQueries({
+      queryKey: queryKeys.conversations(projectId, conv.target_type, conv.target_id),
+    })
+  }, [queryClient, projectId])
 
-  const replyMutation = useMutation({
-    mutationFn: ({ conversationId, input }: { conversationId: string; input: ReplyFormValue }) =>
-      replyConversation(conversationId, input),
-    onSuccess: async (conversation) => {
-      setSelectedConversation(conversation)
-      replyForm.reset({ message: '' })
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.conversations(projectId, conversation.target_type, conversation.target_id),
-      })
-      setError(null)
-    },
-    onError: (mutationError) => {
-      setError(getErrorMessage(mutationError))
-    },
-  })
+  function cancelStream() {
+    abortRef.current?.abort()
+    setIsStreaming(false)
+  }
+
+  function handleStartSubmit(value: StartFormValue) {
+    setStreamingContent('')
+    setIsStreaming(true)
+    setError(null)
+    abortRef.current = new AbortController()
+
+    startConversationStream(
+      projectId,
+      value,
+      {
+        onContent: (chunk: string) => {
+          setStreamingContent((prev) => prev + chunk)
+        },
+        onDone: async (conversation: Conversation) => {
+          setIsStreaming(false)
+          setSelectedConversation(conversation)
+          startForm.reset({ target_type: value.target_type, target_id: value.target_id, message: '' })
+          replyForm.reset({ message: '' })
+          setError(null)
+          await refreshConversations(conversation)
+        },
+        onError: (errMsg: string) => {
+          setIsStreaming(false)
+          setError(errMsg)
+        },
+      },
+      abortRef.current.signal,
+    )
+  }
+
+  function handleReplySubmit(value: ReplyFormValue) {
+    if (!selectedConversation) {
+      setError('请先创建或选择对话。')
+      return
+    }
+    setStreamingContent('')
+    setIsStreaming(true)
+    setError(null)
+    abortRef.current = new AbortController()
+
+    replyConversationStream(
+      selectedConversation.id,
+      value,
+      {
+        onContent: (chunk: string) => {
+          setStreamingContent((prev) => prev + chunk)
+        },
+        onDone: async (conversation: Conversation) => {
+          setIsStreaming(false)
+          setSelectedConversation(conversation)
+          replyForm.reset({ message: '' })
+          setError(null)
+          await refreshConversations(conversation)
+        },
+        onError: (errMsg: string) => {
+          setIsStreaming(false)
+          setError(errMsg)
+        },
+      },
+      abortRef.current.signal,
+    )
+  }
 
   const confirmMutation = useMutation({
     mutationFn: (conversationId: string) => confirmConversation(conversationId),
@@ -124,9 +171,7 @@ export function ConversationsPanel({
       await queryClient.invalidateQueries({ queryKey: queryKeys.projects })
       await queryClient.invalidateQueries({ queryKey: queryKeys.project(projectId) })
       await queryClient.invalidateQueries({ queryKey: queryKeys.assets(projectId, 'all') })
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.conversations(projectId, result.conversation.target_type, result.conversation.target_id),
-      })
+      await refreshConversations(result.conversation)
       setError(null)
     },
     onError: (mutationError) => {
@@ -134,28 +179,12 @@ export function ConversationsPanel({
     },
   })
 
-  function inputTargetId(conversation: Conversation): string {
-    return conversation.target_id
-  }
-
-  function handleStartSubmit(value: StartFormValue) {
-    startMutation.mutate(value)
-  }
-
-  function handleReplySubmit(value: ReplyFormValue) {
-    if (!selectedConversation) {
-      setError('请先创建或选择对话。')
-      return
-    }
-    replyMutation.mutate({ conversationId: selectedConversation.id, input: value })
-  }
-
   const conversations = conversationsQuery.data ?? []
 
   return (
     <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
       <div className="space-y-6">
-        <Card tone="blue">
+        <Card>
           <SectionTitle
             eyebrow="Conversation"
             title="发起微调对话"
@@ -198,7 +227,7 @@ export function ConversationsPanel({
               <Textarea rows={4} {...startForm.register('message')} placeholder="例如：把项目氛围改得更阴郁。" />
             </div>
 
-            <Button type="submit" loading={startMutation.isPending}>
+            <Button type="submit" disabled={isStreaming}>
               <MessagesSquare className="mr-1 h-4 w-4" />
               开始对话
             </Button>
@@ -215,19 +244,19 @@ export function ConversationsPanel({
             {conversations.map((conversation) => (
               <button
                 key={conversation.id}
-                className="w-full rounded-md bg-muted px-3 py-2 text-left text-sm transition-all duration-200 hover:scale-[1.02] hover:bg-gray-200"
+                className="w-full rounded-md bg-muted px-3 py-2 text-left text-sm transition-all duration-200 hover:scale-[1.02] hover:bg-muted"
                 onClick={() => setSelectedConversation(conversation)}
                 type="button"
               >
                 <div className="font-semibold">
                   {conversation.target_type === 'project' ? '项目微调' : '资产微调'}
                 </div>
-                <div className="text-xs text-gray-500">{conversation.updated_at}</div>
+                <div className="text-xs text-muted-foreground">{conversation.updated_at}</div>
               </button>
             ))}
 
             {conversations.length === 0 && !conversationsQuery.isLoading ? (
-              <p className="rounded-md bg-muted p-3 text-sm text-gray-600">当前筛选条件下没有会话。</p>
+              <p className="rounded-md bg-muted p-3 text-sm text-muted-foreground">当前筛选条件下没有会话。</p>
             ) : null}
           </div>
         </Card>
@@ -239,38 +268,72 @@ export function ConversationsPanel({
           title="会话详情"
           description="助手建议会出现在 pending_suggestion，确认后写回项目或资产。"
           action={
-            selectedConversation?.pending_suggestion ? (
-              <Button
-                variant="outline"
-                size="sm"
-                loading={confirmMutation.isPending}
-                onClick={() => confirmMutation.mutate(selectedConversation.id)}
-              >
-                <ShieldCheck className="mr-1 h-4 w-4" />
-                确认建议并写回
-              </Button>
-            ) : null
+            <div className="flex gap-2">
+              {isStreaming ? (
+                <Button variant="danger" size="sm" onClick={cancelStream}>
+                  <Square className="mr-1 h-4 w-4" />
+                  取消生成
+                </Button>
+              ) : null}
+              {selectedConversation?.pending_suggestion && !isStreaming ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  loading={confirmMutation.isPending}
+                  onClick={() => confirmMutation.mutate(selectedConversation.id)}
+                >
+                  <ShieldCheck className="mr-1 h-4 w-4" />
+                  确认建议并写回
+                </Button>
+              ) : null}
+            </div>
           }
         />
 
         {error ? <ErrorState text={error} /> : null}
 
-        {!selectedConversation ? (
-          <p className="rounded-md bg-muted p-4 text-sm text-gray-600">请选择一个会话，或先创建新会话。</p>
-        ) : (
+        {!selectedConversation && !isStreaming ? (
+          <p className="rounded-md bg-muted p-4 text-sm text-muted-foreground">请选择一个会话，或先创建新会话。</p>
+        ) : null}
+
+        {selectedConversation ? (
           <>
             <div className="space-y-2">
               {selectedConversation.messages.map((message) => (
-                <article key={message.id} className="rounded-md bg-muted p-3 text-sm leading-6">
-                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-blue-600">{message.role}</p>
-                  <p className="whitespace-pre-wrap text-gray-800">{message.content}</p>
+                <article
+                  key={message.id}
+                  className={`rounded-md p-3 text-sm leading-6 ${
+                    message.role === 'assistant'
+                      ? 'bg-accent/5'
+                      : message.role === 'user'
+                        ? 'bg-amber-50'
+                        : 'bg-muted'
+                  }`}
+                >
+                  <p className={`mb-1 text-xs font-semibold uppercase tracking-wide ${
+                    message.role === 'assistant'
+                      ? 'text-accent'
+                      : message.role === 'user'
+                        ? 'text-amber-600'
+                        : 'text-muted-foreground'
+                  }`}>
+                    {message.role === 'assistant' ? '助手' : message.role === 'user' ? '用户' : '系统'}
+                  </p>
+                  <p className="whitespace-pre-wrap text-foreground">{message.content}</p>
                 </article>
               ))}
             </div>
 
-            {selectedConversation.pending_suggestion ? (
-              <article className="mt-4 rounded-lg bg-blue-50 p-4">
-                <h4 className="text-sm font-extrabold uppercase tracking-wide text-blue-700">Pending Suggestion</h4>
+            {isStreaming ? (
+              <article className="mt-2 rounded-md bg-accent/5 p-3">
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-accent">助手</p>
+                <StreamingText content={streamingContent} isStreaming={isStreaming} />
+              </article>
+            ) : null}
+
+            {selectedConversation.pending_suggestion && !isStreaming ? (
+              <article className="mt-4 rounded-lg bg-accent/5 p-4">
+                <h4 className="text-sm font-extrabold uppercase tracking-wide text-accent">Pending Suggestion</h4>
                 <p className="mt-2 text-sm">
                   <span className="font-semibold">标题：</span>
                   {selectedConversation.pending_suggestion.title || '-'}
@@ -288,20 +351,22 @@ export function ConversationsPanel({
                   </p>
                 ) : null}
               </article>
-            ) : (
-              <p className="mt-4 rounded-md bg-green-50 p-3 text-sm text-green-700">当前会话暂无待确认建议。</p>
-            )}
+            ) : null}
+
+            {!selectedConversation.pending_suggestion && !isStreaming ? (
+              <p className="mt-4 rounded-md bg-emerald-50 p-3 text-sm text-emerald-700">当前会话暂无待确认建议。</p>
+            ) : null}
 
             <form className="mt-4 space-y-3" onSubmit={replyForm.handleSubmit(handleReplySubmit)}>
               <label className="block text-sm font-semibold">继续追问</label>
               <Textarea rows={3} {...replyForm.register('message')} placeholder="例如：把语气再收敛一些。" />
-              <Button type="submit" loading={replyMutation.isPending}>
+              <Button type="submit" disabled={isStreaming}>
                 <SendHorizontal className="mr-1 h-4 w-4" />
                 发送消息
               </Button>
             </form>
           </>
-        )}
+        ) : null}
       </Card>
     </div>
   )

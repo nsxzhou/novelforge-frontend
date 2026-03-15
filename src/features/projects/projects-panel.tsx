@@ -25,10 +25,7 @@ type ProjectFormValue = z.infer<typeof projectSchema>
 
 type ProjectEditorMode =
   | { type: 'create' }
-  | {
-      type: 'edit'
-      project: Project
-    }
+  | { type: 'edit'; project: Project }
 
 const defaultValues: ProjectFormValue = {
   title: '',
@@ -119,7 +116,7 @@ export function ProjectsPanel() {
 
   return (
     <div className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
-      <Card tone="blue" className="h-fit">
+      <Card className="h-fit">
         <SectionTitle
           eyebrow="Project"
           title={editorMode.type === 'create' ? '创建项目' : '编辑项目'}
@@ -128,7 +125,7 @@ export function ProjectsPanel() {
 
         <form className="space-y-3" onSubmit={form.handleSubmit(onSubmit)}>
           <div>
-            <label className="mb-1 block text-sm font-semibold">项目标题</label>
+            <label className="mb-1 block text-sm font-medium text-foreground">项目标题</label>
             <Input placeholder="例如：暗潮王城" {...form.register('title')} />
             {form.formState.errors.title ? (
               <p className="mt-1 text-xs font-medium text-red-600">{form.formState.errors.title.message}</p>
@@ -136,7 +133,7 @@ export function ProjectsPanel() {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-semibold">项目简介</label>
+            <label className="mb-1 block text-sm font-medium text-foreground">项目简介</label>
             <Textarea rows={4} placeholder="一句话简介" {...form.register('summary')} />
             {form.formState.errors.summary ? (
               <p className="mt-1 text-xs font-medium text-red-600">{form.formState.errors.summary.message}</p>
@@ -144,7 +141,7 @@ export function ProjectsPanel() {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-semibold">状态</label>
+            <label className="mb-1 block text-sm font-medium text-foreground">状态</label>
             <Select {...form.register('status')}>
               <option value="draft">草稿</option>
               <option value="active">进行中</option>
@@ -167,7 +164,7 @@ export function ProjectsPanel() {
         </form>
       </Card>
 
-      <Card tone="default">
+      <Card>
         <SectionTitle
           eyebrow="Projects"
           title="项目列表"
@@ -178,18 +175,19 @@ export function ProjectsPanel() {
         {projectsQuery.error ? <ErrorState text={getErrorMessage(projectsQuery.error)} /> : null}
 
         {projectsQuery.data && projectsQuery.data.length === 0 ? (
-          <p className="rounded-md bg-muted p-4 text-sm text-gray-600">当前没有项目，请先在左侧创建。</p>
+          <p className="rounded-lg border border-border bg-muted p-4 text-sm text-muted-foreground">当前没有项目，请先在左侧创建。</p>
         ) : null}
 
         <div className="space-y-3">
           {projectsQuery.data?.map((project) => (
-            <Card key={project.id} tone="default" interactive className="bg-muted" padding="md">
+            <Card key={project.id} interactive padding="md">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="space-y-1">
-                  <h3 className="text-lg font-bold tracking-tight">{project.title}</h3>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">
+                  <h3 className="text-lg font-semibold tracking-tight">{project.title}</h3>
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-accent/20 bg-accent/5 px-3 py-1 text-xs font-medium text-accent">
+                    <span className="h-1.5 w-1.5 rounded-full bg-accent" />
                     {getStatusLabel(project.status)}
-                  </p>
+                  </span>
                 </div>
 
                 <div className="flex gap-2">
@@ -206,7 +204,7 @@ export function ProjectsPanel() {
                 </div>
               </div>
 
-              <p className="mt-3 whitespace-pre-wrap text-sm text-gray-700">{project.summary}</p>
+              <p className="mt-3 whitespace-pre-wrap text-sm text-muted-foreground">{project.summary}</p>
             </Card>
           ))}
         </div>

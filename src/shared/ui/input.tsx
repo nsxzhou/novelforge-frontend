@@ -1,7 +1,6 @@
 import { forwardRef, type InputHTMLAttributes, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
 import { cn } from '@/shared/lib/cn'
 
-// 统一转发 ref，确保 react-hook-form register 注入的 ref 能正确挂载到原生表单控件。
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Input(
   props,
   ref,
@@ -11,8 +10,10 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
       {...props}
       ref={ref}
       className={cn(
-        'h-12 w-full rounded-md bg-muted px-3 text-sm text-foreground placeholder:text-gray-500',
-        'border-2 border-transparent transition-colors duration-200 focus:border-primary focus:bg-white focus:outline-none',
+        'h-12 w-full rounded-lg border border-border bg-transparent px-3 text-sm text-foreground',
+        'placeholder:text-muted-foreground/50',
+        'transition-colors duration-200',
+        'focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none',
         props.className,
       )}
     />
@@ -21,7 +22,6 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
 
 Input.displayName = 'Input'
 
-// Select 组件同样需要转发 ref，避免在表单注册时触发函数组件 ref 警告。
 export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement>>(function Select(
   props,
   ref,
@@ -31,8 +31,9 @@ export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSel
       {...props}
       ref={ref}
       className={cn(
-        'h-12 w-full rounded-md bg-muted px-3 text-sm text-foreground',
-        'border-2 border-transparent transition-colors duration-200 focus:border-primary focus:bg-white focus:outline-none',
+        'h-12 w-full rounded-lg border border-border bg-transparent px-3 text-sm text-foreground',
+        'transition-colors duration-200',
+        'focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none',
         props.className,
       )}
     />
@@ -41,7 +42,6 @@ export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSel
 
 Select.displayName = 'Select'
 
-// Textarea 组件转发 ref，保持和 Input/Select 一致的表单行为。
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(function Textarea(
   props,
   ref,
@@ -51,8 +51,10 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<H
       {...props}
       ref={ref}
       className={cn(
-        'w-full rounded-md bg-muted px-3 py-2 text-sm text-foreground placeholder:text-gray-500',
-        'border-2 border-transparent transition-colors duration-200 focus:border-primary focus:bg-white focus:outline-none',
+        'w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm text-foreground',
+        'placeholder:text-muted-foreground/50',
+        'transition-colors duration-200',
+        'focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none',
         props.className,
       )}
     />
