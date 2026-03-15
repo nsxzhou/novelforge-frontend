@@ -6,7 +6,7 @@ import { listProjects } from '@/shared/api/projects'
 import { queryKeys } from '@/shared/api/queries'
 import { cn } from '@/shared/lib/cn'
 
-const STORAGE_KEY = 'novelforge-sidebar-collapsed'
+const STORAGE_KEY = 'inkmuse-sidebar-collapsed'
 
 function getStatusColor(status: string) {
   switch (status) {
@@ -51,7 +51,7 @@ function SidebarContent({
           <Link
             to="/"
             className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-accent to-accent-secondary text-white transition-opacity hover:opacity-80"
-            title="NovelForge"
+            title="InkMuse"
           >
             <Sparkles className="h-4 w-4" />
           </Link>

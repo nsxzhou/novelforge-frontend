@@ -1,6 +1,6 @@
-# NovelForge Frontend
+# InkMuse Frontend
 
-NovelForge 前端基于 `Vite + React + TypeScript + Tailwind CSS`。
+InkMuse 前端基于 `Vite + React + TypeScript + Tailwind CSS`。
 
 ## 当前状态
 
