@@ -1,46 +1,78 @@
 import { useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { Download } from 'lucide-react'
-import { getProject } from '@/shared/api/projects'
+import { useParams, useNavigate } from 'react-router-dom'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  Download, PencilLine, Trash2, X, Check,
+  LayoutGrid, Boxes, MessageSquare, BookOpen, Wrench,
+  FileText, Calendar, ChevronRight,
+} from 'lucide-react'
+import { motion } from 'framer-motion'
+import { getProject, updateProject, deleteProject } from '@/shared/api/projects'
 import { listAssets } from '@/shared/api/assets'
+import { listChapters } from '@/shared/api/chapters'
+import { listConversations } from '@/shared/api/conversations'
 import { exportProject } from '@/shared/api/export'
 import { queryKeys } from '@/shared/api/queries'
 import { LoadingState, ErrorState } from '@/shared/ui/feedback'
 import { Tabs } from '@/shared/ui/tabs'
+import { Button } from '@/shared/ui/button'
+import { Input, Textarea, Select, FormField } from '@/shared/ui/input'
+import { Card } from '@/shared/ui/card'
+import { Badge } from '@/shared/ui/badge'
+import { Dialog, DialogFooter } from '@/shared/ui/dialog'
+import { Dropdown, DropdownItem } from '@/shared/ui/dropdown'
+import { useToast } from '@/shared/ui/toast'
+import { cn } from '@/shared/lib/cn'
 import { AssetsPanel } from '@/features/assets/assets-panel'
 import { ConversationsPanel } from '@/features/conversations/conversations-panel'
 import { ChaptersPanel } from '@/features/chapters/chapters-panel'
 import { PromptsPanel } from '@/features/prompts/prompts-panel'
+import { getErrorMessage } from '@/shared/lib/error-message'
 
 type TabKey = 'overview' | 'assets' | 'conversations' | 'chapters' | 'prompts'
 
-const tabs: { key: TabKey; label: string }[] = [
-  { key: 'overview', label: '项目概览' },
-  { key: 'assets', label: '设定工坊' },
-  { key: 'conversations', label: '对话微调' },
-  { key: 'chapters', label: '章节生成器' },
-  { key: 'prompts', label: 'Prompt 模板' },
-]
-
 function getProjectStatusLabel(status: string): string {
   switch (status) {
-    case 'draft':
-      return '草稿'
-    case 'active':
-      return '进行中'
-    case 'archived':
-      return '已归档'
-    default:
-      return status
+    case 'draft': return '草稿'
+    case 'active': return '进行中'
+    case 'archived': return '已归档'
+    default: return status
+  }
+}
+
+function getProjectStatusVariant(status: string) {
+  switch (status) {
+    case 'active': return 'success' as const
+    case 'draft': return 'warning' as const
+    case 'archived': return 'default' as const
+    default: return 'default' as const
+  }
+}
+
+function formatDate(iso: string) {
+  try {
+    return new Date(iso).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })
+  } catch {
+    return iso
   }
 }
 
 export function ProjectWorkbenchPage() {
   const { projectId = '' } = useParams<{ projectId: string }>()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const { toast } = useToast()
   const [activeTab, setActiveTab] = useState<TabKey>('overview')
   const [exportLoading, setExportLoading] = useState(false)
-  const [exportError, setExportError] = useState<string | null>(null)
+
+  // Edit state
+  const [isEditing, setIsEditing] = useState(false)
+  const [editTitle, setEditTitle] = useState('')
+  const [editSummary, setEditSummary] = useState('')
+  const [editStatus, setEditStatus] = useState('draft')
+
+  // Delete dialog
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
   const projectQuery = useQuery({
     queryKey: queryKeys.project(projectId),
@@ -54,60 +86,189 @@ export function ProjectWorkbenchPage() {
     enabled: Boolean(projectId),
   })
 
+  const chaptersQuery = useQuery({
+    queryKey: queryKeys.chapters(projectId),
+    queryFn: () => listChapters(projectId, 200, 0),
+    enabled: Boolean(projectId),
+  })
+
+  const conversationsQuery = useQuery({
+    queryKey: queryKeys.conversations(projectId, 'project', projectId),
+    queryFn: () => listConversations({ projectId, targetType: 'project', targetId: projectId, limit: 200, offset: 0 }),
+    enabled: Boolean(projectId),
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: (input: { title: string; summary: string; status: string }) =>
+      updateProject(projectId, {
+        title: input.title,
+        summary: input.summary,
+        status: input.status as 'draft' | 'active' | 'archived',
+      }),
+    onSuccess: async () => {
+      setIsEditing(false)
+      await queryClient.invalidateQueries({ queryKey: queryKeys.project(projectId) })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.projects })
+      toast('项目已更新')
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteProject(projectId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.projects })
+      toast('项目已删除')
+      navigate('/')
+    },
+  })
+
+  function startEditing() {
+    if (!projectQuery.data) return
+    setEditTitle(projectQuery.data.title)
+    setEditSummary(projectQuery.data.summary)
+    setEditStatus(projectQuery.data.status)
+    setIsEditing(true)
+  }
+
+  function cancelEditing() {
+    setIsEditing(false)
+  }
+
+  function saveEditing() {
+    if (!editTitle.trim() || !editSummary.trim()) return
+    updateMutation.mutate({
+      title: editTitle.trim(),
+      summary: editSummary.trim(),
+      status: editStatus,
+    })
+  }
+
   async function handleExport(format: 'md' | 'txt') {
     if (!projectId) return
     setExportLoading(true)
-    setExportError(null)
     try {
       await exportProject(projectId, format)
+      toast(`已导出为 ${format.toUpperCase()} 格式`)
     } catch (err) {
-      setExportError(err instanceof Error ? err.message : '导出失败')
+      toast(err instanceof Error ? err.message : '导出失败', 'error')
     } finally {
       setExportLoading(false)
     }
   }
 
-  const content = useMemo(() => {
-    if (!projectQuery.data) {
-      return null
-    }
+  const tabs: { key: TabKey; label: string; icon: React.ReactNode; count?: number }[] = [
+    { key: 'overview', label: '概览', icon: <LayoutGrid className="h-4 w-4" /> },
+    { key: 'assets', label: '设定工坊', icon: <Boxes className="h-4 w-4" />, count: assetsQuery.data?.length },
+    { key: 'conversations', label: '对话微调', icon: <MessageSquare className="h-4 w-4" />, count: conversationsQuery.data?.length },
+    { key: 'chapters', label: '章节', icon: <BookOpen className="h-4 w-4" />, count: chaptersQuery.data?.length },
+    { key: 'prompts', label: 'Prompts', icon: <Wrench className="h-4 w-4" /> },
+  ]
 
+  const content = useMemo(() => {
+    if (!projectQuery.data) return null
     const project = projectQuery.data
     const assets = assetsQuery.data ?? []
+    const chapters = chaptersQuery.data ?? []
+    const conversations = conversationsQuery.data ?? []
 
     switch (activeTab) {
       case 'overview':
         return (
-          <section className="grid gap-6 lg:grid-cols-2">
-            <div className="space-y-3 rounded-xl border border-border bg-card p-6 shadow-sm">
-              <h2 className="font-display text-2xl tracking-tight">{project.title}</h2>
-              <div>
-                <span className="inline-flex items-center gap-2 rounded-full border border-accent/20 bg-accent/5 px-3 py-1 text-xs font-medium text-accent">
-                  <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-                  {getProjectStatusLabel(project.status)}
-                </span>
-              </div>
-              <p className="whitespace-pre-wrap text-sm leading-7 text-muted-foreground">{project.summary}</p>
-            </div>
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="grid gap-6 lg:grid-cols-[1fr_320px]"
+          >
+            {/* Left: Project details */}
+            <Card>
+              {isEditing ? (
+                <div className="space-y-4">
+                  <FormField label="标题">
+                    <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} placeholder="项目标题" />
+                  </FormField>
+                  <FormField label="状态">
+                    <Select value={editStatus} onChange={(e) => setEditStatus(e.target.value)}>
+                      <option value="draft">草稿</option>
+                      <option value="active">进行中</option>
+                      <option value="archived">已归档</option>
+                    </Select>
+                  </FormField>
+                  <FormField label="简介">
+                    <Textarea value={editSummary} onChange={(e) => setEditSummary(e.target.value)} rows={4} placeholder="项目简介" />
+                  </FormField>
+                  {updateMutation.error && <ErrorState text={getErrorMessage(updateMutation.error)} />}
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" onClick={saveEditing} loading={updateMutation.isPending} leftIcon={<Check className="h-3.5 w-3.5" />}>
+                      保存
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={cancelEditing} leftIcon={<X className="h-3.5 w-3.5" />}>
+                      取消
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-2">
+                      <h2 className="font-display text-xl tracking-tight">{project.title}</h2>
+                      <Badge variant={getProjectStatusVariant(project.status)} dot>
+                        {getProjectStatusLabel(project.status)}
+                      </Badge>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={startEditing} leftIcon={<PencilLine className="h-3.5 w-3.5" />}>
+                      编辑
+                    </Button>
+                  </div>
+                  <p className="whitespace-pre-wrap text-sm leading-7 text-muted-foreground">
+                    {project.summary}
+                  </p>
+                  <div className="flex items-center gap-4 text-xs text-stone-400">
+                    <span className="flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      创建于 {formatDate(project.created_at)}
+                    </span>
+                    <span>更新于 {formatDate(project.updated_at)}</span>
+                  </div>
 
-            <div className="rounded-xl border border-border bg-card p-6 shadow-md">
-              <h3 className="font-display text-xl tracking-tight">项目统计</h3>
-              <ul className="mt-4 space-y-3 text-sm text-muted-foreground">
-                <li className="flex items-center gap-2">
-                  <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-                  资产数量：{assets.length}
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="h-1.5 w-1.5 rounded-full bg-accent-secondary" />
-                  支持资产类型：世界观 / 角色 / 大纲
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-                  可用操作：对话微调、章节生成、Prompt 模板覆盖
-                </li>
-              </ul>
+                  <div className="border-t border-border pt-4">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowDeleteDialog(true)}
+                      className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                      leftIcon={<Trash2 className="h-3.5 w-3.5" />}
+                    >
+                      删除项目
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </Card>
+
+            {/* Right: Stats cards */}
+            <div className="space-y-4">
+              {[
+                { label: '设定资产', value: assets.length, icon: Boxes, color: 'text-ink-500', bg: 'bg-ink-50' },
+                { label: '章节数', value: chapters.length, icon: BookOpen, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                { label: '对话数', value: conversations.length, icon: MessageSquare, color: 'text-amber-600', bg: 'bg-amber-50' },
+              ].map((stat) => {
+                const Icon = stat.icon
+                return (
+                  <Card key={stat.label} padding="md">
+                    <div className="flex items-center gap-4">
+                      <div className={cn(`flex h-10 w-10 items-center justify-center rounded-xl ${stat.bg} ${stat.color}`)}>
+                        <Icon className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-2xl font-semibold tracking-tight text-foreground">{stat.value}</p>
+                        <p className="text-xs text-muted-foreground">{stat.label}</p>
+                      </div>
+                    </div>
+                  </Card>
+                )
+              })}
             </div>
-          </section>
+          </motion.div>
         )
       case 'assets':
         return <AssetsPanel projectId={project.id} />
@@ -120,66 +281,93 @@ export function ProjectWorkbenchPage() {
       default:
         return null
     }
-  }, [activeTab, assetsQuery.data, projectQuery.data])
+  }, [
+    activeTab, assetsQuery.data, chaptersQuery.data, conversationsQuery.data,
+    projectQuery.data, isEditing, editTitle, editSummary, editStatus,
+    updateMutation.isPending, updateMutation.error, showDeleteDialog,
+  ])
 
   return (
-    <div className="space-y-8">
-      <div className="space-y-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="font-display text-3xl tracking-tight text-foreground">
-              {projectQuery.data?.title ?? '项目工作台'}
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              统一管理设定资产、对话微调与章节生成流程，保持创作上下文连续。
-            </p>
-          </div>
-          <div className="inline-flex items-center gap-2.5 rounded-full border border-accent/20 bg-accent/5 px-4 py-1.5">
-            <span className="h-1.5 w-1.5 animate-pulse-dot rounded-full bg-accent" />
-            <span className="font-mono text-xs uppercase tracking-[0.15em] text-accent">
-              Workbench
+    <div className="mx-auto max-w-6xl space-y-6">
+      {/* Header */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-1">
+          {/* Breadcrumb */}
+          <div className="flex items-center gap-1.5 text-xs text-stone-400">
+            <span>项目</span>
+            <ChevronRight className="h-3 w-3" />
+            <span className="text-foreground font-medium">
+              {projectQuery.data?.title ?? '加载中...'}
             </span>
           </div>
-          <div className="relative inline-block">
-            <button
-              type="button"
-              disabled={exportLoading}
-              className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted disabled:opacity-50"
+          <h1 className="font-display text-2xl tracking-tight text-foreground">
+            {projectQuery.data?.title ?? '项目工作台'}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            统一管理设定资产、对话微调与章节生成流程
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {/* Export dropdown */}
+          <Dropdown
+            trigger={
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={exportLoading}
+                leftIcon={<Download className="h-3.5 w-3.5" />}
+              >
+                {exportLoading ? '导出中...' : '导出'}
+              </Button>
+            }
+          >
+            <DropdownItem
+              icon={<FileText className="h-4 w-4" />}
               onClick={() => handleExport('md')}
             >
-              <Download className="h-4 w-4" />
-              {exportLoading ? '导出中...' : '导出'}
-            </button>
-            {!exportLoading ? (
-              <div className="absolute right-0 top-full z-10 mt-1 hidden w-36 rounded-lg border border-border bg-card py-1 shadow-lg group-hover:block [button:focus+&]:block">
-                <button
-                  type="button"
-                  className="w-full px-3 py-1.5 text-left text-sm hover:bg-muted"
-                  onClick={() => handleExport('md')}
-                >
-                  Markdown (.md)
-                </button>
-                <button
-                  type="button"
-                  className="w-full px-3 py-1.5 text-left text-sm hover:bg-muted"
-                  onClick={() => handleExport('txt')}
-                >
-                  纯文本 (.txt)
-                </button>
-              </div>
-            ) : null}
-          </div>
+              Markdown (.md)
+            </DropdownItem>
+            <DropdownItem
+              icon={<FileText className="h-4 w-4" />}
+              onClick={() => handleExport('txt')}
+            >
+              纯文本 (.txt)
+            </DropdownItem>
+          </Dropdown>
         </div>
-
-        <Tabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab} />
       </div>
 
-      <div className="space-y-6">
-        {exportError ? <ErrorState text={exportError} /> : null}
+      {/* Tabs */}
+      <Tabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab} />
+
+      {/* Content */}
+      <div>
         {projectQuery.isLoading ? <LoadingState text="加载项目中..." /> : null}
         {projectQuery.error ? <ErrorState text={String((projectQuery.error as Error).message)} /> : null}
         {projectQuery.data ? content : null}
       </div>
+
+      {/* Delete dialog */}
+      <Dialog
+        open={showDeleteDialog}
+        onClose={() => setShowDeleteDialog(false)}
+        title="删除项目"
+        description={`确定要删除项目「${projectQuery.data?.title}」吗？此操作不可撤销，所有相关数据将被永久删除。`}
+        size="sm"
+      >
+        {deleteMutation.error && <ErrorState text={getErrorMessage(deleteMutation.error)} />}
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setShowDeleteDialog(false)}>取消</Button>
+          <Button
+            variant="danger"
+            loading={deleteMutation.isPending}
+            onClick={() => deleteMutation.mutate()}
+            leftIcon={<Trash2 className="h-3.5 w-3.5" />}
+          >
+            确认删除
+          </Button>
+        </DialogFooter>
+      </Dialog>
     </div>
   )
 }

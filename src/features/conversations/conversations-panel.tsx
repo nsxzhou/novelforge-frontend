@@ -3,7 +3,11 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { MessagesSquare, SendHorizontal, ShieldCheck, Square } from 'lucide-react'
+import {
+  MessagesSquare, SendHorizontal, ShieldCheck, Square,
+  Plus, MessageCircle, Clock, ChevronRight,
+} from 'lucide-react'
+import { motion } from 'framer-motion'
 import {
   confirmConversation,
   listConversations,
@@ -15,10 +19,16 @@ import type { Asset, Conversation, Project } from '@/shared/api/types'
 import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
 import { ErrorState, LoadingState } from '@/shared/ui/feedback'
-import { Select, Textarea } from '@/shared/ui/input'
-import { SectionTitle } from '@/shared/ui/section-title'
+import { Select, Textarea, FormField } from '@/shared/ui/input'
 import { StreamingText } from '@/shared/ui/streaming-text'
+import { Avatar } from '@/shared/ui/avatar'
+import { Badge } from '@/shared/ui/badge'
+import { Dialog, DialogFooter } from '@/shared/ui/dialog'
+import { EmptyState } from '@/shared/ui/empty-state'
+import { useToast } from '@/shared/ui/toast'
 import { getErrorMessage } from '@/shared/lib/error-message'
+import { variants, transitions } from '@/shared/lib/motion'
+import { cn } from '@/shared/lib/cn'
 
 const startSchema = z.object({
   target_type: z.enum(['project', 'asset']),
@@ -33,6 +43,21 @@ const replySchema = z.object({
 type StartFormValue = z.infer<typeof startSchema>
 type ReplyFormValue = z.infer<typeof replySchema>
 
+function formatRelativeTime(iso: string) {
+  try {
+    const diff = Date.now() - new Date(iso).getTime()
+    const mins = Math.floor(diff / 60000)
+    if (mins < 1) return '刚刚'
+    if (mins < 60) return `${mins}分钟前`
+    const hours = Math.floor(mins / 60)
+    if (hours < 24) return `${hours}小时前`
+    const days = Math.floor(hours / 24)
+    return `${days}天前`
+  } catch {
+    return iso
+  }
+}
+
 export function ConversationsPanel({
   project,
   assets,
@@ -42,7 +67,9 @@ export function ConversationsPanel({
 }) {
   const projectId = project.id
   const queryClient = useQueryClient()
+  const { toast } = useToast()
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null)
+  const [showNewDialog, setShowNewDialog] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [streamingContent, setStreamingContent] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
@@ -50,11 +77,7 @@ export function ConversationsPanel({
 
   const startForm = useForm<StartFormValue>({
     resolver: zodResolver(startSchema),
-    defaultValues: {
-      target_type: 'project',
-      target_id: project.id,
-      message: '',
-    },
+    defaultValues: { target_type: 'project', target_id: project.id, message: '' },
   })
 
   const replyForm = useForm<ReplyFormValue>({
@@ -68,10 +91,7 @@ export function ConversationsPanel({
     if (targetType === 'project') {
       return [{ id: project.id, label: `项目：${project.title}` }]
     }
-    return assets.map((asset) => ({
-      id: asset.id,
-      label: `${asset.title}（${asset.type}）`,
-    }))
+    return assets.map((asset) => ({ id: asset.id, label: `${asset.title}（${asset.type}）` }))
   }, [assets, project.id, project.title, targetType])
 
   const conversationsQuery = useQuery({
@@ -105,63 +125,42 @@ export function ConversationsPanel({
     setStreamingContent('')
     setIsStreaming(true)
     setError(null)
+    setShowNewDialog(false)
     abortRef.current = new AbortController()
 
-    startConversationStream(
-      projectId,
-      value,
-      {
-        onContent: (chunk: string) => {
-          setStreamingContent((prev) => prev + chunk)
-        },
-        onDone: async (conversation: Conversation) => {
-          setIsStreaming(false)
-          setSelectedConversation(conversation)
-          startForm.reset({ target_type: value.target_type, target_id: value.target_id, message: '' })
-          replyForm.reset({ message: '' })
-          setError(null)
-          await refreshConversations(conversation)
-        },
-        onError: (errMsg: string) => {
-          setIsStreaming(false)
-          setError(errMsg)
-        },
+    startConversationStream(projectId, value, {
+      onContent: (chunk: string) => setStreamingContent((prev) => prev + chunk),
+      onDone: async (conversation: Conversation) => {
+        setIsStreaming(false)
+        setSelectedConversation(conversation)
+        startForm.reset({ target_type: value.target_type, target_id: value.target_id, message: '' })
+        replyForm.reset({ message: '' })
+        setError(null)
+        await refreshConversations(conversation)
+        toast('对话已创建')
       },
-      abortRef.current.signal,
-    )
+      onError: (errMsg: string) => { setIsStreaming(false); setError(errMsg) },
+    }, abortRef.current.signal)
   }
 
   function handleReplySubmit(value: ReplyFormValue) {
-    if (!selectedConversation) {
-      setError('请先创建或选择对话。')
-      return
-    }
+    if (!selectedConversation) { setError('请先创建或选择对话。'); return }
     setStreamingContent('')
     setIsStreaming(true)
     setError(null)
     abortRef.current = new AbortController()
 
-    replyConversationStream(
-      selectedConversation.id,
-      value,
-      {
-        onContent: (chunk: string) => {
-          setStreamingContent((prev) => prev + chunk)
-        },
-        onDone: async (conversation: Conversation) => {
-          setIsStreaming(false)
-          setSelectedConversation(conversation)
-          replyForm.reset({ message: '' })
-          setError(null)
-          await refreshConversations(conversation)
-        },
-        onError: (errMsg: string) => {
-          setIsStreaming(false)
-          setError(errMsg)
-        },
+    replyConversationStream(selectedConversation.id, value, {
+      onContent: (chunk: string) => setStreamingContent((prev) => prev + chunk),
+      onDone: async (conversation: Conversation) => {
+        setIsStreaming(false)
+        setSelectedConversation(conversation)
+        replyForm.reset({ message: '' })
+        setError(null)
+        await refreshConversations(conversation)
       },
-      abortRef.current.signal,
-    )
+      onError: (errMsg: string) => { setIsStreaming(false); setError(errMsg) },
+    }, abortRef.current.signal)
   }
 
   const confirmMutation = useMutation({
@@ -173,201 +172,214 @@ export function ConversationsPanel({
       await queryClient.invalidateQueries({ queryKey: queryKeys.assets(projectId, 'all') })
       await refreshConversations(result.conversation)
       setError(null)
+      toast('建议已确认并写回')
     },
-    onError: (mutationError) => {
-      setError(getErrorMessage(mutationError))
-    },
+    onError: (mutationError) => setError(getErrorMessage(mutationError)),
   })
 
   const conversations = conversationsQuery.data ?? []
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
-      <div className="space-y-6">
-        <Card>
-          <SectionTitle
-            eyebrow="Conversation"
-            title="发起微调对话"
-            description="支持项目和资产的对话微调。"
-          />
+    <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+      {/* Left: History list */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-foreground">会话列表</h3>
+          <Button size="sm" variant="tonal" onClick={() => setShowNewDialog(true)} leftIcon={<Plus className="h-3.5 w-3.5" />}>
+            新对话
+          </Button>
+        </div>
 
-          <form className="space-y-3" onSubmit={startForm.handleSubmit(handleStartSubmit)}>
-            <div>
-              <label className="mb-1 block text-sm font-semibold">目标类型</label>
-              <Select
-                {...startForm.register('target_type')}
-                onChange={(event) => {
-                  const nextType = event.target.value as 'project' | 'asset'
-                  startForm.setValue('target_type', nextType)
-                  if (nextType === 'project') {
-                    startForm.setValue('target_id', project.id)
-                  } else {
-                    startForm.setValue('target_id', assets[0]?.id ?? '')
-                  }
-                }}
-              >
-                <option value="project">项目</option>
-                <option value="asset">资产</option>
-              </Select>
-            </div>
+        {conversationsQuery.isLoading && <LoadingState text="加载会话中..." />}
+        {conversationsQuery.error && <ErrorState text={getErrorMessage(conversationsQuery.error)} />}
 
-            <div>
-              <label className="mb-1 block text-sm font-semibold">目标对象</label>
-              <Select {...startForm.register('target_id')}>
-                {targetOptions.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.label}
-                  </option>
-                ))}
-              </Select>
-            </div>
-
-            <div>
-              <label className="mb-1 block text-sm font-semibold">首条指令</label>
-              <Textarea rows={4} {...startForm.register('message')} placeholder="例如：把项目氛围改得更阴郁。" />
-            </div>
-
-            <Button type="submit" disabled={isStreaming}>
-              <MessagesSquare className="mr-1 h-4 w-4" />
-              开始对话
-            </Button>
-          </form>
-        </Card>
-
-        <Card>
-          <SectionTitle eyebrow="History" title="历史会话" />
-
-          {conversationsQuery.isLoading ? <LoadingState text="加载会话中..." /> : null}
-          {conversationsQuery.error ? <ErrorState text={getErrorMessage(conversationsQuery.error)} /> : null}
-
-          <div className="space-y-2">
-            {conversations.map((conversation) => (
-              <button
-                key={conversation.id}
-                className="w-full rounded-md bg-muted px-3 py-2 text-left text-sm transition-all duration-200 hover:scale-[1.02] hover:bg-muted"
-                onClick={() => setSelectedConversation(conversation)}
+        <motion.div initial="hidden" animate="visible" variants={variants.staggerChildren} className="space-y-1.5">
+          {conversations.map((conv) => {
+            const isActive = selectedConversation?.id === conv.id
+            const hasPending = !!conv.pending_suggestion
+            return (
+              <motion.button
+                key={conv.id}
+                variants={variants.fadeInUp}
+                onClick={() => setSelectedConversation(conv)}
                 type="button"
+                className={cn(
+                  'w-full rounded-lg px-3 py-2.5 text-left transition-all duration-150',
+                  isActive
+                    ? 'bg-ink-50 border border-ink-200 shadow-xs'
+                    : 'hover:bg-stone-50 border border-transparent',
+                )}
               >
-                <div className="font-semibold">
-                  {conversation.target_type === 'project' ? '项目微调' : '资产微调'}
+                <div className="flex items-center gap-2 mb-1">
+                  <MessageCircle className={cn('h-3.5 w-3.5 shrink-0', isActive ? 'text-ink-500' : 'text-stone-400')} />
+                  <span className="text-sm font-medium truncate">
+                    {conv.target_type === 'project' ? '项目微调' : '资产微调'}
+                  </span>
+                  {hasPending && <Badge variant="warning" className="text-[10px] ml-auto">待确认</Badge>}
                 </div>
-                <div className="text-xs text-muted-foreground">{conversation.updated_at}</div>
-              </button>
-            ))}
+                <div className="flex items-center gap-2 text-[11px] text-stone-400 pl-5.5">
+                  <Clock className="h-3 w-3" />
+                  {formatRelativeTime(conv.updated_at)}
+                  <span className="ml-auto">{conv.messages.length} 条</span>
+                </div>
+              </motion.button>
+            )
+          })}
+        </motion.div>
 
-            {conversations.length === 0 && !conversationsQuery.isLoading ? (
-              <p className="rounded-md bg-muted p-3 text-sm text-muted-foreground">当前筛选条件下没有会话。</p>
-            ) : null}
-          </div>
-        </Card>
+        {conversations.length === 0 && !conversationsQuery.isLoading && (
+          <EmptyState
+            icon={<MessagesSquare className="h-5 w-5" />}
+            title="暂无会话"
+            description="创建新对话以开始微调"
+            className="py-8"
+          />
+        )}
       </div>
 
+      {/* Right: Conversation detail */}
       <Card>
-        <SectionTitle
-          eyebrow="Detail"
-          title="会话详情"
-          description="助手建议会出现在 pending_suggestion，确认后写回项目或资产。"
-          action={
-            <div className="flex gap-2">
-              {isStreaming ? (
-                <Button variant="danger" size="sm" onClick={cancelStream}>
-                  <Square className="mr-1 h-4 w-4" />
-                  取消生成
-                </Button>
-              ) : null}
-              {selectedConversation?.pending_suggestion && !isStreaming ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  loading={confirmMutation.isPending}
-                  onClick={() => confirmMutation.mutate(selectedConversation.id)}
-                >
-                  <ShieldCheck className="mr-1 h-4 w-4" />
-                  确认建议并写回
-                </Button>
-              ) : null}
-            </div>
-          }
-        />
-
-        {error ? <ErrorState text={error} /> : null}
-
         {!selectedConversation && !isStreaming ? (
-          <p className="rounded-md bg-muted p-4 text-sm text-muted-foreground">请选择一个会话，或先创建新会话。</p>
-        ) : null}
-
-        {selectedConversation ? (
-          <>
-            <div className="space-y-2">
-              {selectedConversation.messages.map((message) => (
-                <article
-                  key={message.id}
-                  className={`rounded-md p-3 text-sm leading-6 ${
-                    message.role === 'assistant'
-                      ? 'bg-accent/5'
-                      : message.role === 'user'
-                        ? 'bg-amber-50'
-                        : 'bg-muted'
-                  }`}
-                >
-                  <p className={`mb-1 text-xs font-semibold uppercase tracking-wide ${
-                    message.role === 'assistant'
-                      ? 'text-accent'
-                      : message.role === 'user'
-                        ? 'text-amber-600'
-                        : 'text-muted-foreground'
-                  }`}>
-                    {message.role === 'assistant' ? '助手' : message.role === 'user' ? '用户' : '系统'}
-                  </p>
-                  <p className="whitespace-pre-wrap text-foreground">{message.content}</p>
-                </article>
-              ))}
+          <EmptyState
+            icon={<MessageCircle className="h-6 w-6" />}
+            title="选择一个会话"
+            description="从左侧选择会话，或创建新对话"
+            className="border-none bg-transparent"
+          />
+        ) : (
+          <div className="space-y-4">
+            {/* Action bar */}
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-foreground">会话详情</h3>
+              <div className="flex gap-2">
+                {isStreaming && (
+                  <Button variant="danger" size="sm" onClick={cancelStream} leftIcon={<Square className="h-3.5 w-3.5" />}>
+                    取消
+                  </Button>
+                )}
+                {selectedConversation?.pending_suggestion && !isStreaming && (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    loading={confirmMutation.isPending}
+                    onClick={() => confirmMutation.mutate(selectedConversation.id)}
+                    leftIcon={<ShieldCheck className="h-3.5 w-3.5" />}
+                  >
+                    确认并应用
+                  </Button>
+                )}
+              </div>
             </div>
 
-            {isStreaming ? (
-              <article className="mt-2 rounded-md bg-accent/5 p-3">
-                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-accent">助手</p>
-                <StreamingText content={streamingContent} isStreaming={isStreaming} />
-              </article>
-            ) : null}
+            {error && <ErrorState text={error} />}
 
-            {selectedConversation.pending_suggestion && !isStreaming ? (
-              <article className="mt-4 rounded-lg bg-accent/5 p-4">
-                <h4 className="text-sm font-extrabold uppercase tracking-wide text-accent">Pending Suggestion</h4>
-                <p className="mt-2 text-sm">
-                  <span className="font-semibold">标题：</span>
-                  {selectedConversation.pending_suggestion.title || '-'}
-                </p>
-                {selectedConversation.pending_suggestion.summary ? (
-                  <p className="mt-2 whitespace-pre-wrap text-sm">
-                    <span className="font-semibold">简介：</span>
-                    {selectedConversation.pending_suggestion.summary}
-                  </p>
-                ) : null}
-                {selectedConversation.pending_suggestion.content ? (
-                  <p className="mt-2 whitespace-pre-wrap text-sm">
-                    <span className="font-semibold">内容：</span>
-                    {selectedConversation.pending_suggestion.content}
-                  </p>
-                ) : null}
-              </article>
-            ) : null}
+            {/* Messages */}
+            {selectedConversation && (
+              <motion.div initial="hidden" animate="visible" variants={variants.staggerChildren} className="space-y-3">
+                  {selectedConversation.messages.map((message) => (
+                    <motion.div
+                      key={message.id}
+                      variants={variants.fadeInUp}
+                      transition={transitions.springGentle}
+                      className="flex gap-3"
+                    >
+                      <Avatar variant={message.role === 'user' ? 'user' : message.role === 'assistant' ? 'ai' : 'neutral'} size="sm" />
+                      <div className={cn(
+                        'flex-1 rounded-lg px-4 py-3',
+                        message.role === 'user' ? 'bg-ink-50/60' : message.role === 'assistant' ? 'bg-card border border-border shadow-xs' : 'bg-stone-50',
+                      )}>
+                        <p className="mb-1 text-[11px] font-medium text-stone-400">
+                          {message.role === 'assistant' ? '助手' : message.role === 'user' ? '用户' : '系统'}
+                        </p>
+                        <p className="whitespace-pre-wrap text-sm leading-7 text-foreground">{message.content}</p>
+                      </div>
+                    </motion.div>
+                  ))}
+                </motion.div>
+            )}
 
-            {!selectedConversation.pending_suggestion && !isStreaming ? (
-              <p className="mt-4 rounded-md bg-emerald-50 p-3 text-sm text-emerald-700">当前会话暂无待确认建议。</p>
-            ) : null}
+            {/* Streaming */}
+            {isStreaming && (
+              <div className="flex gap-3">
+                <Avatar variant="ai" size="sm" />
+                <div className="flex-1 rounded-lg border border-border bg-card px-4 py-3 shadow-xs">
+                  <p className="mb-1 text-[11px] font-medium text-stone-400">助手</p>
+                  <StreamingText content={streamingContent} isStreaming={isStreaming} />
+                </div>
+              </div>
+            )}
 
-            <form className="mt-4 space-y-3" onSubmit={replyForm.handleSubmit(handleReplySubmit)}>
-              <label className="block text-sm font-semibold">继续追问</label>
-              <Textarea rows={3} {...replyForm.register('message')} placeholder="例如：把语气再收敛一些。" />
-              <Button type="submit" disabled={isStreaming}>
-                <SendHorizontal className="mr-1 h-4 w-4" />
-                发送消息
-              </Button>
-            </form>
-          </>
-        ) : null}
+            {/* Pending suggestion highlight */}
+            {selectedConversation?.pending_suggestion && !isStreaming && (
+              <Card variant="highlighted" highlightColor="#6366F1" padding="md">
+                <div className="flex items-center gap-2 mb-3">
+                  <ChevronRight className="h-4 w-4 text-ink-500" />
+                  <span className="text-xs font-semibold text-ink-600">待确认建议</span>
+                </div>
+                {selectedConversation.pending_suggestion.title && (
+                  <p className="text-sm"><span className="font-semibold">标题：</span>{selectedConversation.pending_suggestion.title}</p>
+                )}
+                {selectedConversation.pending_suggestion.summary && (
+                  <p className="mt-1 text-sm text-stone-600 whitespace-pre-wrap">{selectedConversation.pending_suggestion.summary}</p>
+                )}
+                {selectedConversation.pending_suggestion.content && (
+                  <p className="mt-1 text-sm text-stone-600 whitespace-pre-wrap">{selectedConversation.pending_suggestion.content}</p>
+                )}
+              </Card>
+            )}
+
+            {/* Reply form */}
+            {selectedConversation && !isStreaming && (
+              <form className="space-y-3 border-t border-border pt-4" onSubmit={replyForm.handleSubmit(handleReplySubmit)}>
+                <Textarea rows={2} {...replyForm.register('message')} placeholder="继续对话..." />
+                <div className="flex justify-end">
+                  <Button type="submit" size="sm" disabled={isStreaming} leftIcon={<SendHorizontal className="h-3.5 w-3.5" />}>
+                    发送
+                  </Button>
+                </div>
+              </form>
+            )}
+          </div>
+        )}
       </Card>
+
+      {/* New conversation dialog */}
+      <Dialog
+        open={showNewDialog}
+        onClose={() => setShowNewDialog(false)}
+        title="发起新对话"
+        description="选择微调目标并输入首条指令"
+      >
+        <form className="space-y-4" onSubmit={startForm.handleSubmit(handleStartSubmit)}>
+          <FormField label="目标类型">
+            <Select
+              {...startForm.register('target_type')}
+              onChange={(event) => {
+                const nextType = event.target.value as 'project' | 'asset'
+                startForm.setValue('target_type', nextType)
+                startForm.setValue('target_id', nextType === 'project' ? project.id : assets[0]?.id ?? '')
+              }}
+            >
+              <option value="project">项目</option>
+              <option value="asset">资产</option>
+            </Select>
+          </FormField>
+          <FormField label="目标对象">
+            <Select {...startForm.register('target_id')}>
+              {targetOptions.map((item) => (
+                <option key={item.id} value={item.id}>{item.label}</option>
+              ))}
+            </Select>
+          </FormField>
+          <FormField label="首条指令">
+            <Textarea rows={3} {...startForm.register('message')} placeholder="例如：把项目氛围改得更阴郁。" />
+          </FormField>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setShowNewDialog(false)}>取消</Button>
+            <Button type="submit" disabled={isStreaming} leftIcon={<MessagesSquare className="h-3.5 w-3.5" />}>开始对话</Button>
+          </DialogFooter>
+        </form>
+      </Dialog>
     </div>
   )
 }

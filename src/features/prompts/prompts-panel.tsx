@@ -4,15 +4,21 @@ import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { FileText, RotateCcw, Save } from 'lucide-react'
+import { motion } from 'framer-motion'
 import { deletePrompt, listPrompts, upsertPrompt } from '@/shared/api/prompts'
 import { queryKeys } from '@/shared/api/queries'
 import type { PromptTemplate } from '@/shared/api/types'
 import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
 import { ErrorState, LoadingState } from '@/shared/ui/feedback'
-import { Textarea } from '@/shared/ui/input'
+import { Textarea, FormField } from '@/shared/ui/input'
 import { SectionTitle } from '@/shared/ui/section-title'
+import { Badge } from '@/shared/ui/badge'
+import { Dialog, DialogFooter } from '@/shared/ui/dialog'
+import { EmptyState } from '@/shared/ui/empty-state'
+import { useToast } from '@/shared/ui/toast'
 import { getErrorMessage } from '@/shared/lib/error-message'
+import { variants, transitions } from '@/shared/lib/motion'
 
 const promptSchema = z.object({
   system: z.string().trim().min(1, '请填写 system 模板'),
@@ -21,9 +27,24 @@ const promptSchema = z.object({
 
 type PromptFormValue = z.infer<typeof promptSchema>
 
+const capabilityLabels: Record<string, string> = {
+  asset_generation: '资产生成',
+  chapter_generation: '章节生成',
+  chapter_continuation: '章节续写',
+  chapter_rewrite: '章节改写',
+  conversation: '对话微调',
+  inspiration: '灵感构思',
+}
+
+function getCapabilityLabel(capability: string): string {
+  return capabilityLabels[capability] ?? capability
+}
+
 export function PromptsPanel({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient()
+  const { toast } = useToast()
   const [editingCapability, setEditingCapability] = useState<string | null>(null)
+  const [resetTarget, setResetTarget] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const promptsQuery = useQuery({
@@ -47,6 +68,7 @@ export function PromptsPanel({ projectId }: { projectId: string }) {
       await refreshPrompts()
       setEditingCapability(null)
       setError(null)
+      toast('模板已保存')
     },
     onError: (err) => setError(getErrorMessage(err)),
   })
@@ -55,8 +77,10 @@ export function PromptsPanel({ projectId }: { projectId: string }) {
     mutationFn: (capability: string) => deletePrompt(projectId, capability),
     onSuccess: async () => {
       await refreshPrompts()
+      setResetTarget(null)
       setEditingCapability(null)
       setError(null)
+      toast('已重置为默认模板')
     },
     onError: (err) => setError(getErrorMessage(err)),
   })
@@ -87,77 +111,134 @@ export function PromptsPanel({ projectId }: { projectId: string }) {
         description="查看并覆盖项目级 Prompt 模板。标记为「已覆盖」的模板为项目自定义版本。"
       />
 
-      {error ? <ErrorState text={error} /> : null}
-      {promptsQuery.isLoading ? <LoadingState text="加载模板中..." /> : null}
-      {promptsQuery.error ? <ErrorState text={getErrorMessage(promptsQuery.error)} /> : null}
+      {error && <ErrorState text={error} />}
+      {promptsQuery.isLoading && <LoadingState text="加载模板中..." />}
+      {promptsQuery.error && <ErrorState text={getErrorMessage(promptsQuery.error)} />}
 
-      {prompts.length === 0 && !promptsQuery.isLoading ? (
-        <p className="rounded-lg border border-border bg-muted p-4 text-sm text-muted-foreground">暂无可用的 Prompt 模板。</p>
-      ) : null}
+      {prompts.length === 0 && !promptsQuery.isLoading && (
+        <EmptyState
+          icon={<FileText className="h-6 w-6" />}
+          title="暂无 Prompt 模板"
+          description="项目没有可用的 Prompt 模板"
+        />
+      )}
 
-      <div className="space-y-4">
+      <motion.div
+        initial="hidden"
+        animate="visible"
+        variants={variants.staggerChildren}
+        className="space-y-4"
+      >
         {prompts.map((prompt) => {
           const isEditing = editingCapability === prompt.capability
           return (
-            <Card key={prompt.capability} variant={prompt.is_override ? 'featured' : 'default'}>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-3">
-                  <FileText className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <h3 className="text-lg font-semibold tracking-tight">{prompt.capability}</h3>
-                    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${prompt.is_override ? 'border border-accent/20 bg-accent/5 text-accent' : 'border border-border bg-muted text-muted-foreground'}`}>
-                      <span className={`h-1.5 w-1.5 rounded-full ${prompt.is_override ? 'bg-accent' : 'bg-muted-foreground'}`} />
-                      {prompt.is_override ? '已覆盖' : '默认'}
-                    </span>
+            <motion.div key={prompt.capability} variants={variants.fadeInUp} transition={transitions.springGentle}>
+              <Card variant={prompt.is_override ? 'highlighted' : 'default'}>
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-stone-100 text-stone-500">
+                      <FileText className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-semibold tracking-tight">{getCapabilityLabel(prompt.capability)}</h3>
+                      <Badge variant={prompt.is_override ? 'accent' : 'default'} dot className="mt-0.5">
+                        {prompt.is_override ? '已覆盖' : '默认'}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="flex gap-1.5">
+                    {!isEditing && (
+                      <Button variant="ghost" size="sm" onClick={() => handleEdit(prompt)}>
+                        编辑
+                      </Button>
+                    )}
+                    {prompt.is_override && !isEditing && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setResetTarget(prompt.capability)}
+                        className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                        leftIcon={<RotateCcw className="h-3.5 w-3.5" />}
+                      >
+                        重置
+                      </Button>
+                    )}
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  {!isEditing ? <Button variant="secondary" size="sm" onClick={() => handleEdit(prompt)}>编辑</Button> : null}
-                  {prompt.is_override && !isEditing ? (
-                    <Button variant="danger" size="sm" loading={deleteMutation.isPending} onClick={() => deleteMutation.mutate(prompt.capability)}>
-                      <RotateCcw className="mr-1 h-4 w-4" />重置为默认
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
-              {prompt.available_variables.length > 0 ? (
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {prompt.available_variables.map((v) => (
-                    <span key={v} className="inline-block rounded-full border border-accent/20 bg-accent/5 px-2.5 py-0.5 text-xs font-medium text-accent">{`{{${v}}}`}</span>
-                  ))}
-                </div>
-              ) : null}
-              {isEditing ? (
-                <form className="mt-4 space-y-3" onSubmit={form.handleSubmit(handleSubmit)}>
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-foreground">System 模板</label>
-                    <Textarea rows={6} {...form.register('system')} placeholder="System prompt 模板" />
+
+                {/* Variable badges */}
+                {prompt.available_variables.length > 0 && (
+                  <div className="mb-3 flex flex-wrap gap-1.5">
+                    {prompt.available_variables.map((v) => (
+                      <Badge key={v} variant="accent" className="font-mono text-[11px]">{`{{${v}}}`}</Badge>
+                    ))}
                   </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-foreground">User 模板</label>
-                    <Textarea rows={6} {...form.register('user')} placeholder="User prompt 模板" />
-                  </div>
-                  <div className="flex gap-2">
-                    <Button type="submit" loading={upsertMutation.isPending}><Save className="mr-1 h-4 w-4" />保存覆盖</Button>
-                    <Button type="button" variant="secondary" size="sm" onClick={handleCancel}>取消</Button>
-                  </div>
-                </form>
-              ) : (
-                <div className="mt-3 space-y-2">
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">System</p>
-                    <p className="mt-1 whitespace-pre-wrap rounded-lg border border-border bg-muted p-3 text-sm text-foreground">{prompt.system || '（空）'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">User</p>
-                    <p className="mt-1 whitespace-pre-wrap rounded-lg border border-border bg-muted p-3 text-sm text-foreground">{prompt.user || '（空）'}</p>
-                  </div>
-                </div>
-              )}
-            </Card>
+                )}
+
+                {isEditing ? (
+                    <motion.form
+                      key="edit"
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="space-y-3"
+                      onSubmit={form.handleSubmit(handleSubmit)}
+                    >
+                      <FormField label="System 模板">
+                        <Textarea rows={6} {...form.register('system')} placeholder="System prompt 模板" className="font-mono text-xs" />
+                      </FormField>
+                      <FormField label="User 模板">
+                        <Textarea rows={6} {...form.register('user')} placeholder="User prompt 模板" className="font-mono text-xs" />
+                      </FormField>
+                      <div className="flex gap-2">
+                        <Button type="submit" size="sm" loading={upsertMutation.isPending} leftIcon={<Save className="h-3.5 w-3.5" />}>
+                          保存覆盖
+                        </Button>
+                        <Button type="button" variant="ghost" size="sm" onClick={handleCancel}>取消</Button>
+                      </div>
+                    </motion.form>
+                  ) : (
+                    <motion.div key="display" className="space-y-2">
+                      <div>
+                        <p className="text-[11px] font-medium uppercase tracking-wider text-stone-400 mb-1">System</p>
+                        <div className="whitespace-pre-wrap rounded-lg border border-border bg-stone-50 p-3 text-xs text-foreground font-mono leading-relaxed max-h-40 overflow-y-auto">
+                          {prompt.system || '（空）'}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-medium uppercase tracking-wider text-stone-400 mb-1">User</p>
+                        <div className="whitespace-pre-wrap rounded-lg border border-border bg-stone-50 p-3 text-xs text-foreground font-mono leading-relaxed max-h-40 overflow-y-auto">
+                          {prompt.user || '（空）'}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+              </Card>
+            </motion.div>
           )
         })}
-      </div>
+      </motion.div>
+
+      {/* Reset confirmation dialog */}
+      <Dialog
+        open={resetTarget !== null}
+        onClose={() => setResetTarget(null)}
+        title="重置模板"
+        description="确定要将此模板重置为默认值吗？自定义内容将丢失。"
+        size="sm"
+      >
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setResetTarget(null)}>取消</Button>
+          <Button
+            variant="danger"
+            loading={deleteMutation.isPending}
+            onClick={() => resetTarget && deleteMutation.mutate(resetTarget)}
+            leftIcon={<RotateCcw className="h-3.5 w-3.5" />}
+          >
+            确认重置
+          </Button>
+        </DialogFooter>
+      </Dialog>
     </div>
   )
 }
