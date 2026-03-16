@@ -17,6 +17,7 @@ export type Asset = {
   type: AssetType
   title: string
   content: string
+  content_schema?: string
   created_at: string
   updated_at: string
 }

@@ -41,3 +41,9 @@ export function updateProject(projectId: string, input: UpsertProjectInput): Pro
     body: input,
   })
 }
+
+export function deleteProject(projectId: string): Promise<void> {
+  return request<void>(`/projects/${projectId}`, {
+    method: 'DELETE',
+  })
+}

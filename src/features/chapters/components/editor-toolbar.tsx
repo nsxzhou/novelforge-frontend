@@ -1,119 +1,57 @@
 import type { Editor } from '@tiptap/react'
-import {
-  Bold,
-  Italic,
-  Heading1,
-  Heading2,
-  Heading3,
-  List,
-  ListOrdered,
-  Quote,
-  Undo2,
-  Redo2,
-} from 'lucide-react'
+import { Undo2, Redo2, Sparkles } from 'lucide-react'
 
 type ToolbarButtonProps = {
   onClick: () => void
-  isActive?: boolean
   disabled?: boolean
   title: string
   children: React.ReactNode
 }
 
-function ToolbarButton({ onClick, isActive, disabled, title, children }: ToolbarButtonProps) {
+function ToolbarButton({ onClick, disabled, title, children }: ToolbarButtonProps) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className={`rounded p-1.5 transition-colors ${
-        isActive
-          ? 'bg-accent/20 text-accent'
-          : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-      } disabled:opacity-40`}
+      className="rounded p-1.5 transition-colors text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40"
     >
       {children}
     </button>
   )
 }
 
-export function EditorToolbar({ editor }: { editor: Editor | null }) {
+type EditorToolbarProps = {
+  editor: Editor | null
+  ghostTextEnabled?: boolean
+  onToggleGhostText?: () => void
+}
+
+export function EditorToolbar({ editor, ghostTextEnabled, onToggleGhostText }: EditorToolbarProps) {
   if (!editor) return null
 
   const iconSize = 'h-4 w-4'
 
   return (
-    <div className="flex flex-wrap items-center gap-0.5 border-b border-border pb-2 mb-3">
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleBold().run()}
-        isActive={editor.isActive('bold')}
-        title="加粗"
-      >
-        <Bold className={iconSize} />
-      </ToolbarButton>
+    <div className="flex items-center gap-0.5 border-b border-border pb-2 mb-3">
+      {onToggleGhostText !== undefined && (
+        <button
+          type="button"
+          onClick={onToggleGhostText}
+          title={ghostTextEnabled ? '关闭 AI 续写建议' : '开启 AI 续写建议'}
+          className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+            ghostTextEnabled
+              ? 'bg-ink-50 text-ink-600 hover:bg-ink-100'
+              : 'bg-muted text-muted-foreground hover:bg-stone-200'
+          }`}
+        >
+          <Sparkles className="h-3.5 w-3.5" />
+          {ghostTextEnabled ? 'AI 续写 开' : 'AI 续写 关'}
+        </button>
+      )}
 
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleItalic().run()}
-        isActive={editor.isActive('italic')}
-        title="斜体"
-      >
-        <Italic className={iconSize} />
-      </ToolbarButton>
-
-      <div className="mx-1 h-5 w-px bg-border" />
-
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-        isActive={editor.isActive('heading', { level: 1 })}
-        title="一级标题"
-      >
-        <Heading1 className={iconSize} />
-      </ToolbarButton>
-
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-        isActive={editor.isActive('heading', { level: 2 })}
-        title="二级标题"
-      >
-        <Heading2 className={iconSize} />
-      </ToolbarButton>
-
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-        isActive={editor.isActive('heading', { level: 3 })}
-        title="三级标题"
-      >
-        <Heading3 className={iconSize} />
-      </ToolbarButton>
-
-      <div className="mx-1 h-5 w-px bg-border" />
-
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleBulletList().run()}
-        isActive={editor.isActive('bulletList')}
-        title="无序列表"
-      >
-        <List className={iconSize} />
-      </ToolbarButton>
-
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleOrderedList().run()}
-        isActive={editor.isActive('orderedList')}
-        title="有序列表"
-      >
-        <ListOrdered className={iconSize} />
-      </ToolbarButton>
-
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleBlockquote().run()}
-        isActive={editor.isActive('blockquote')}
-        title="引用"
-      >
-        <Quote className={iconSize} />
-      </ToolbarButton>
-
-      <div className="mx-1 h-5 w-px bg-border" />
+      <div className="mx-1.5 h-4 w-px bg-border" />
 
       <ToolbarButton
         onClick={() => editor.chain().focus().undo().run()}

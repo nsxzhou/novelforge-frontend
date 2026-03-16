@@ -3,9 +3,14 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CheckCircle2, FileClock, RefreshCcw, Save, Square, WandSparkles } from 'lucide-react'
+import {
+  CheckCircle2, RefreshCcw, Save, Square, WandSparkles,
+  Plus, BookOpen, FileText, AlignLeft, Undo2,
+} from 'lucide-react'
+import { motion } from 'framer-motion'
 import {
   confirmChapter,
+  unconfirmChapter,
   createChapterStream,
   continueChapterStream,
   getChapter,
@@ -19,10 +24,16 @@ import type { Chapter } from '@/shared/api/types'
 import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
 import { ErrorState, LoadingState } from '@/shared/ui/feedback'
-import { Input, Textarea } from '@/shared/ui/input'
-import { SectionTitle } from '@/shared/ui/section-title'
+import { Input, Textarea, FormField } from '@/shared/ui/input'
 import { StreamingText } from '@/shared/ui/streaming-text'
+import { Badge } from '@/shared/ui/badge'
+import { Tabs } from '@/shared/ui/tabs'
+import { Dialog, DialogFooter } from '@/shared/ui/dialog'
+import { EmptyState } from '@/shared/ui/empty-state'
+import { useToast } from '@/shared/ui/toast'
 import { getErrorMessage } from '@/shared/lib/error-message'
+import { variants } from '@/shared/lib/motion'
+import { cn } from '@/shared/lib/cn'
 import { TiptapEditor, type TextSelection } from './components/tiptap-editor'
 import { RewritePopover } from './components/rewrite-popover'
 
@@ -45,19 +56,39 @@ type CreateFormValue = z.infer<typeof createSchema>
 type ContinueFormValue = z.infer<typeof continueSchema>
 type RewriteFormValue = z.infer<typeof rewriteSchema>
 
+type AITab = 'continue' | 'rewrite'
+
+function wordCount(text: string): number {
+  return text.replace(/\s/g, '').length
+}
+
 export function ChaptersPanel({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient()
+  const { toast } = useToast()
   const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null)
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [operationResult, setOperationResult] = useState<string | null>(null)
   const [streamingContent, setStreamingContent] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
+  const [aiTab, setAITab] = useState<AITab>('continue')
   const abortRef = useRef<AbortController | null>(null)
 
   // Tiptap editor state
   const [editedContent, setEditedContent] = useState<string | null>(null)
   const [selection, setSelection] = useState<TextSelection | null>(null)
   const [showRewritePopover, setShowRewritePopover] = useState(false)
+
+  const [ghostTextOn, setGhostTextOn] = useState(
+    () => localStorage.getItem('ghostTextEnabled') !== 'false',
+  )
+  function toggleGhostText() {
+    setGhostTextOn((prev) => {
+      const next = !prev
+      localStorage.setItem('ghostTextEnabled', String(next))
+      return next
+    })
+  }
 
   const createForm = useForm<CreateFormValue>({
     resolver: zodResolver(createSchema),
@@ -102,85 +133,70 @@ export function ChaptersPanel({ projectId }: { projectId: string }) {
 
   const makeCallbacks = useCallback(
     (onDoneExtra?: (result: ChapterGenerationResponse) => void) => ({
-      onContent: (chunk: string) => {
-        setStreamingContent((prev) => prev + chunk)
-      },
+      onContent: (chunk: string) => setStreamingContent((prev) => prev + chunk),
       onDone: async (result: ChapterGenerationResponse) => {
         setIsStreaming(false)
         setSelectedChapterId(result.chapter.id)
         setEditedContent(null)
-        setOperationResult(`完成，耗时 ${result.generation_record.duration_millis} ms。`)
+        setOperationResult(`完成，耗时 ${result.generation_record.duration_millis} ms`)
         onDoneExtra?.(result)
         await refreshChapters()
+        toast('操作完成')
       },
-      onError: (errMsg: string) => {
-        setIsStreaming(false)
-        setError(errMsg)
-      },
+      onError: (errMsg: string) => { setIsStreaming(false); setError(errMsg) },
     }),
-    [refreshChapters],
+    [refreshChapters, toast],
   )
 
-  function cancelStream() {
-    abortRef.current?.abort()
-    setIsStreaming(false)
-  }
+  function cancelStream() { abortRef.current?.abort(); setIsStreaming(false) }
 
   function handleCreateSubmit(value: CreateFormValue) {
     startStream()
-    createChapterStream(
-      projectId,
-      value,
-      makeCallbacks((result) => {
-        createForm.reset({ title: '', ordinal: result.chapter.ordinal + 1, instruction: '' })
-      }),
-      abortRef.current!.signal,
-    )
+    setShowCreateDialog(false)
+    createChapterStream(projectId, value, makeCallbacks((result) => {
+      createForm.reset({ title: '', ordinal: result.chapter.ordinal + 1, instruction: '' })
+    }), abortRef.current!.signal)
   }
 
   function handleContinueSubmit(value: ContinueFormValue) {
-    if (!selectedChapterId) {
-      setError('请先选择章节。')
-      return
-    }
+    if (!selectedChapterId) { setError('请先选择章节。'); return }
     startStream()
-    continueChapterStream(
-      selectedChapterId,
-      value,
-      makeCallbacks(() => {
-        continueForm.reset({ instruction: '' })
-      }),
-      abortRef.current!.signal,
-    )
+    continueChapterStream(selectedChapterId, value, makeCallbacks(() => {
+      continueForm.reset({ instruction: '' })
+    }), abortRef.current!.signal)
   }
 
   function handleRewriteSubmit(value: RewriteFormValue) {
-    if (!selectedChapterId) {
-      setError('请先选择章节。')
-      return
-    }
+    if (!selectedChapterId) { setError('请先选择章节。'); return }
     startStream()
-    rewriteChapterStream(
-      selectedChapterId,
-      value,
-      makeCallbacks(() => {
-        rewriteForm.reset({ target_text: '', instruction: '' })
-      }),
-      abortRef.current!.signal,
-    )
+    rewriteChapterStream(selectedChapterId, value, makeCallbacks(() => {
+      rewriteForm.reset({ target_text: '', instruction: '' })
+    }), abortRef.current!.signal)
   }
 
   const confirmMutation = useMutation({
     mutationFn: (chapterId: string) => confirmChapter(chapterId),
     onSuccess: async (chapter) => {
       setSelectedChapterId(chapter.id)
-      setOperationResult('当前稿已确认。')
+      setOperationResult('当前稿已确认')
       setError(null)
       await refreshChapters()
+      toast('章节已确认')
     },
-    onError: (mutationError) => {
-      setError(getErrorMessage(mutationError))
+    onError: (mutationError) => setError(getErrorMessage(mutationError)),
+  })
+
+  const unconfirmMutation = useMutation({
+    mutationFn: (chapterId: string) => unconfirmChapter(chapterId),
+    onSuccess: async (chapter) => {
+      setSelectedChapterId(chapter.id)
+      setEditedContent(null)
+      setOperationResult('已取消确认，可继续编辑')
+      setError(null)
+      await refreshChapters()
+      toast('已取消确认')
     },
+    onError: (mutationError) => setError(getErrorMessage(mutationError)),
   })
 
   const saveMutation = useMutation({
@@ -188,13 +204,12 @@ export function ChaptersPanel({ projectId }: { projectId: string }) {
       updateChapter(chapterId, { content }),
     onSuccess: async () => {
       setEditedContent(null)
-      setOperationResult('内容已保存。')
+      setOperationResult('内容已保存')
       setError(null)
       await refreshChapters()
+      toast('已保存')
     },
-    onError: (mutationError) => {
-      setError(getErrorMessage(mutationError))
-    },
+    onError: (mutationError) => setError(getErrorMessage(mutationError)),
   })
 
   const selectedChapter: Chapter | null = chapterDetailQuery.data ?? null
@@ -206,14 +221,8 @@ export function ChaptersPanel({ projectId }: { projectId: string }) {
   const isDraft = selectedChapter?.status === 'draft'
   const hasUnsavedChanges = editedContent !== null && editedContent !== selectedChapter?.content
 
-  function handleContentChange(text: string) {
-    setEditedContent(text)
-  }
-
-  function handleSelectionChange(sel: TextSelection | null) {
-    setSelection(sel)
-  }
-
+  function handleContentChange(plainText: string) { setEditedContent(plainText) }
+  function handleSelectionChange(sel: TextSelection | null) { setSelection(sel) }
   function handleSave() {
     if (!selectedChapterId || editedContent === null) return
     saveMutation.mutate({ chapterId: selectedChapterId, content: editedContent })
@@ -224,49 +233,32 @@ export function ChaptersPanel({ projectId }: { projectId: string }) {
     setSelection(null)
     setEditedContent(null)
     setSelectedChapterId(result.chapter.id)
-    setOperationResult(`改写完成，耗时 ${result.generation_record.duration_millis} ms。`)
+    setOperationResult(`改写完成，耗时 ${result.generation_record.duration_millis} ms`)
     refreshChapters()
   }
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
-      <div className="space-y-6">
-        <Card>
-          <SectionTitle eyebrow="Chapters" title="生成新章节" description="输入标题、序号和创作要求。" />
+    <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+      {/* Left: Chapter list */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-foreground">章节列表</h3>
+          <Button size="sm" onClick={() => setShowCreateDialog(true)} leftIcon={<Plus className="h-3.5 w-3.5" />}>
+            新章节
+          </Button>
+        </div>
 
-          <form className="space-y-3" onSubmit={createForm.handleSubmit(handleCreateSubmit)}>
-            <div>
-              <label className="mb-1 block text-sm font-semibold">章节标题</label>
-              <Input {...createForm.register('title')} placeholder="例如：第一章 王城初见" />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-semibold">章节序号</label>
-              <Input type="number" min={1} {...createForm.register('ordinal')} />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-semibold">创作要求</label>
-              <Textarea rows={4} {...createForm.register('instruction')} placeholder="描述章节生成要求" />
-            </div>
-            <Button type="submit" disabled={isStreaming}>
-              <WandSparkles className="mr-1 h-4 w-4" />
-              生成章节
-            </Button>
-          </form>
-        </Card>
+        {chaptersQuery.isLoading && <LoadingState text="加载章节中..." />}
+        {chaptersQuery.error && <ErrorState text={getErrorMessage(chaptersQuery.error)} />}
 
-        <Card>
-          <SectionTitle
-            eyebrow="List"
-            title="章节列表"
-            description="可查看并选择章节做续写/改写/确认。"
-          />
-          {chaptersQuery.isLoading ? <LoadingState text="加载章节中..." /> : null}
-          {chaptersQuery.error ? <ErrorState text={getErrorMessage(chaptersQuery.error)} /> : null}
-
-          <div className="space-y-2">
-            {chapters.map((chapter) => (
-              <button
+        <motion.div initial="hidden" animate="visible" variants={variants.staggerChildren} className="space-y-1.5">
+          {chapters.map((chapter) => {
+            const isActive = selectedChapterId === chapter.id
+            const isConfirmed = chapter.status === 'confirmed'
+            return (
+              <motion.button
                 key={chapter.id}
+                variants={variants.fadeInUp}
                 type="button"
                 onClick={() => {
                   setSelectedChapterId(chapter.id)
@@ -274,178 +266,224 @@ export function ChaptersPanel({ projectId }: { projectId: string }) {
                   setSelection(null)
                   setShowRewritePopover(false)
                 }}
-                className="w-full rounded-md bg-muted px-3 py-2 text-left transition-all duration-200 hover:scale-[1.02] hover:bg-muted"
+                className={cn(
+                  'w-full rounded-lg px-3 py-2.5 text-left transition-all duration-150',
+                  isActive
+                    ? 'bg-card border-l-[3px] border-l-ink-500 border border-border shadow-xs'
+                    : 'hover:bg-stone-50 border border-transparent',
+                )}
               >
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-bold tracking-tight">
-                    第 {chapter.ordinal} 章 · {chapter.title}
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium tracking-tight truncate">
+                    第{chapter.ordinal}章 · {chapter.title}
                   </p>
-                  <span className="text-xs font-semibold uppercase tracking-wide text-accent">
-                    {chapter.status === 'confirmed' ? '已确认' : '草稿'}
-                  </span>
+                  <Badge variant={isConfirmed ? 'success' : 'warning'} className="text-[10px] shrink-0">
+                    {isConfirmed ? '已确认' : '草稿'}
+                  </Badge>
                 </div>
-              </button>
-            ))}
-            {chapters.length === 0 && !chaptersQuery.isLoading ? (
-              <p className="rounded-md bg-muted p-3 text-sm text-muted-foreground">暂无章节，请先生成。</p>
-            ) : null}
-          </div>
-        </Card>
+                <p className="mt-0.5 text-[11px] text-stone-400">
+                  {wordCount(chapter.content)} 字
+                </p>
+              </motion.button>
+            )
+          })}
+        </motion.div>
+
+        {chapters.length === 0 && !chaptersQuery.isLoading && (
+          <EmptyState
+            icon={<BookOpen className="h-5 w-5" />}
+            title="暂无章节"
+            description="生成新章节开始创作"
+            className="py-8"
+          />
+        )}
       </div>
 
-      <Card>
-        <SectionTitle
-          eyebrow="Detail"
-          title="章节详情与操作"
-          description="支持编辑、续写、局部改写和当前稿确认。"
-          action={
-            <div className="flex gap-2">
-              {isStreaming ? (
-                <Button variant="danger" size="sm" onClick={cancelStream}>
-                  <Square className="mr-1 h-4 w-4" />
-                  取消生成
-                </Button>
-              ) : null}
-              {selectedChapter && isDraft && hasUnsavedChanges && !isStreaming ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  loading={saveMutation.isPending}
-                  onClick={handleSave}
-                >
-                  <Save className="mr-1 h-4 w-4" />
-                  保存
-                </Button>
-              ) : null}
-              {selectedChapter && !isStreaming ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  loading={confirmMutation.isPending}
-                  onClick={() => confirmMutation.mutate(selectedChapter.id)}
-                >
-                  <CheckCircle2 className="mr-1 h-4 w-4" />
-                  确认当前稿
-                </Button>
-              ) : null}
+      {/* Right: Chapter detail */}
+      <div className="space-y-4">
+        {error && <ErrorState text={error} />}
+        {operationResult && !isStreaming && (
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-medium text-emerald-700">
+            {operationResult}
+          </div>
+        )}
+
+        {/* Streaming output */}
+        {isStreaming && (
+          <Card variant="elevated" className="border-ink-100">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-medium text-ink-500">AI 生成中</span>
+              <Button variant="danger" size="sm" onClick={cancelStream} leftIcon={<Square className="h-3.5 w-3.5" />}>
+                取消
+              </Button>
             </div>
-          }
-        />
-
-        {error ? <ErrorState text={error} /> : null}
-        {operationResult && !isStreaming ? (
-          <p className="mb-3 rounded-md bg-emerald-50 p-3 text-sm font-semibold text-emerald-700">{operationResult}</p>
-        ) : null}
-
-        {isStreaming ? (
-          <article className="rounded-lg bg-accent/5 p-4">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-accent">AI 生成中</p>
             <StreamingText content={streamingContent} isStreaming={isStreaming} />
-          </article>
-        ) : null}
+          </Card>
+        )}
 
-        {!selectedChapterId && !isStreaming ? (
-          <p className="rounded-md bg-muted p-4 text-sm text-muted-foreground">请先从左侧选择章节。</p>
-        ) : null}
+        {!selectedChapterId && !isStreaming && (
+          <EmptyState
+            icon={<FileText className="h-6 w-6" />}
+            title="选择一个章节"
+            description="从左侧列表选择章节以查看和编辑"
+          />
+        )}
 
-        {selectedChapter && !isStreaming ? (
+        {selectedChapter && !isStreaming && (
           <>
-            <article className="rounded-lg bg-muted p-4">
-              <div className="mb-2 flex items-center justify-between">
-                <h3 className="text-lg font-extrabold tracking-tight">{selectedChapter.title}</h3>
-                <div className="flex items-center gap-2">
-                  {hasUnsavedChanges ? (
-                    <span className="text-xs font-medium text-amber-600">未保存</span>
-                  ) : null}
-                  <span className="text-xs font-semibold uppercase tracking-wide text-accent">
+            {/* Editor card */}
+            <Card>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <h3 className="font-display text-lg font-semibold tracking-tight">{selectedChapter.title}</h3>
+                  <Badge variant={selectedChapter.status === 'confirmed' ? 'success' : 'warning'}>
                     {selectedChapter.status === 'confirmed' ? '已确认' : '草稿'}
-                  </span>
+                  </Badge>
+                  {hasUnsavedChanges && <Badge variant="warning">未保存</Badge>}
+                </div>
+                <div className="flex items-center gap-2">
+                  {hasUnsavedChanges && isDraft && (
+                    <Button variant="tonal" size="sm" loading={saveMutation.isPending} onClick={handleSave} leftIcon={<Save className="h-3.5 w-3.5" />}>
+                      保存
+                    </Button>
+                  )}
+                  {isDraft ? (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      loading={confirmMutation.isPending}
+                      onClick={() => confirmMutation.mutate(selectedChapter.id)}
+                      leftIcon={<CheckCircle2 className="h-3.5 w-3.5" />}
+                    >
+                      确认当前稿
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      loading={unconfirmMutation.isPending}
+                      onClick={() => unconfirmMutation.mutate(selectedChapter.id)}
+                      leftIcon={<Undo2 className="h-3.5 w-3.5" />}
+                    >
+                      取消确认
+                    </Button>
+                  )}
                 </div>
               </div>
 
-              {selectedChapter.current_draft_id ? (
-                <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
-                  <FileClock className="h-4 w-4" />
-                  current_draft_id: {selectedChapter.current_draft_id}
-                </div>
-              ) : null}
+              <div className="rounded-lg border border-border bg-white p-4">
+                <TiptapEditor
+                  key={selectedChapter.id}
+                  content={selectedChapter.content}
+                  readOnly={!isDraft}
+                  chapterId={selectedChapterId ?? undefined}
+                  ghostTextEnabled={isDraft && ghostTextOn}
+                  onToggleGhostText={isDraft ? toggleGhostText : undefined}
+                  onContentChange={handleContentChange}
+                  onSelectionChange={handleSelectionChange}
+                />
+              </div>
 
-              {selectedChapter.current_draft_confirmed_at ? (
-                <div className="mb-2 flex items-center gap-2 text-xs text-emerald-700">
-                  <CheckCircle2 className="h-4 w-4" />
-                  已确认于 {selectedChapter.current_draft_confirmed_at}
+              <div className="mt-3 flex items-center justify-between text-xs text-stone-400">
+                <span><AlignLeft className="inline h-3 w-3 mr-1" />{wordCount(editedContent ?? selectedChapter.content)} 字</span>
+                <div className="flex items-center gap-4">
+                  {isDraft && (
+                    <span className="text-stone-300">输入后稍候，AI 将自动提供续写建议（Tab 接受 / Esc 取消）</span>
+                  )}
+                  {selectedChapter.current_draft_confirmed_at && (
+                    <span className="text-emerald-600">已确认于 {selectedChapter.current_draft_confirmed_at}</span>
+                  )}
                 </div>
-              ) : null}
+              </div>
+            </Card>
 
-              <TiptapEditor
-                content={selectedChapter.content}
-                readOnly={!isDraft}
-                onContentChange={handleContentChange}
-                onSelectionChange={handleSelectionChange}
+            {/* Selection rewrite popover */}
+            {selection && isDraft && !showRewritePopover && (
+                <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                  <Button variant="tonal" size="sm" onClick={() => setShowRewritePopover(true)} leftIcon={<WandSparkles className="h-3.5 w-3.5" />}>
+                    改写选中文本
+                  </Button>
+                </motion.div>
+              )}
+
+            {showRewritePopover && selection && selectedChapterId && (
+              <RewritePopover
+                chapterId={selectedChapterId}
+                selectedText={selection.text}
+                onClose={() => setShowRewritePopover(false)}
+                onComplete={handleRewriteComplete}
               />
-            </article>
+            )}
 
-            {/* Rewrite from selection */}
-            {selection && isDraft && !showRewritePopover ? (
-              <div className="mt-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowRewritePopover(true)}
-                >
-                  <WandSparkles className="mr-1 h-4 w-4" />
-                  改写选中文本
-                </Button>
+            {/* AI operations — unified card with tabs */}
+            <Card>
+              <Tabs
+                tabs={[
+                  { key: 'continue' as const, label: '续写', icon: <RefreshCcw className="h-3.5 w-3.5" /> },
+                  { key: 'rewrite' as const, label: '改写', icon: <WandSparkles className="h-3.5 w-3.5" /> },
+                ]}
+                activeKey={aiTab}
+                onChange={setAITab}
+              />
+
+              <div className="mt-4">
+                {aiTab === 'continue' && (
+                  <form className="space-y-3" onSubmit={continueForm.handleSubmit(handleContinueSubmit)}>
+                    <FormField label="续写要求">
+                      <Textarea rows={3} {...continueForm.register('instruction')} placeholder="输入续写要求" />
+                    </FormField>
+                    <Button type="submit" size="sm" disabled={isStreaming} leftIcon={<RefreshCcw className="h-3.5 w-3.5" />}>
+                      执行续写
+                    </Button>
+                  </form>
+                )}
+                {aiTab === 'rewrite' && (
+                  <form className="space-y-3" onSubmit={rewriteForm.handleSubmit(handleRewriteSubmit)}>
+                    <FormField label="要改写的原文">
+                      <Textarea rows={2} {...rewriteForm.register('target_text')} placeholder="粘贴需要改写的原文" />
+                    </FormField>
+                    <FormField label="改写要求">
+                      <Textarea rows={2} {...rewriteForm.register('instruction')} placeholder="描述改写要求" />
+                    </FormField>
+                    <Button type="submit" size="sm" disabled={isStreaming} leftIcon={<WandSparkles className="h-3.5 w-3.5" />}>
+                      执行改写
+                    </Button>
+                  </form>
+                )}
               </div>
-            ) : null}
-
-            {showRewritePopover && selection && selectedChapterId ? (
-              <div className="mt-3">
-                <RewritePopover
-                  chapterId={selectedChapterId}
-                  selectedText={selection.text}
-                  onClose={() => setShowRewritePopover(false)}
-                  onComplete={handleRewriteComplete}
-                />
-              </div>
-            ) : null}
-
-            <div className="mt-4 grid gap-4 lg:grid-cols-2">
-              <form
-                className="space-y-3 rounded-xl border border-accent/20 bg-accent/5 p-4"
-                onSubmit={continueForm.handleSubmit(handleContinueSubmit)}
-              >
-                <h4 className="text-sm font-extrabold uppercase tracking-wide text-accent">章节续写</h4>
-                <Textarea rows={4} {...continueForm.register('instruction')} placeholder="输入续写要求" />
-                <Button type="submit" disabled={isStreaming}>
-                  <RefreshCcw className="mr-1 h-4 w-4" />
-                  执行续写
-                </Button>
-              </form>
-
-              <form
-                className="space-y-3 rounded-xl border border-amber-500/20 bg-amber-50 p-4"
-                onSubmit={rewriteForm.handleSubmit(handleRewriteSubmit)}
-              >
-                <h4 className="text-sm font-extrabold uppercase tracking-wide text-amber-600">局部改写</h4>
-                <Textarea
-                  rows={3}
-                  {...rewriteForm.register('target_text')}
-                  placeholder="粘贴需要改写的原文（或在编辑器中选中文本）"
-                />
-                <Textarea rows={3} {...rewriteForm.register('instruction')} placeholder="描述改写要求" />
-                <Button type="submit" disabled={isStreaming}>
-                  <WandSparkles className="mr-1 h-4 w-4" />
-                  执行改写
-                </Button>
-              </form>
-            </div>
+            </Card>
           </>
-        ) : null}
+        )}
 
-        {chapterDetailQuery.isLoading && !isStreaming ? <LoadingState text="加载章节详情..." /> : null}
-        {chapterDetailQuery.error && !isStreaming ? <ErrorState text={getErrorMessage(chapterDetailQuery.error)} /> : null}
-      </Card>
+        {chapterDetailQuery.isLoading && !isStreaming && <LoadingState text="加载章节详情..." />}
+        {chapterDetailQuery.error && !isStreaming && <ErrorState text={getErrorMessage(chapterDetailQuery.error)} />}
+      </div>
+
+      {/* Create chapter dialog */}
+      <Dialog
+        open={showCreateDialog}
+        onClose={() => setShowCreateDialog(false)}
+        title="生成新章节"
+        description="输入章节信息和创作要求"
+      >
+        <form className="space-y-4" onSubmit={createForm.handleSubmit(handleCreateSubmit)}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FormField label="章节标题" error={createForm.formState.errors.title?.message}>
+              <Input {...createForm.register('title')} placeholder="例如：第一章 王城初见" />
+            </FormField>
+            <FormField label="章节序号" error={createForm.formState.errors.ordinal?.message}>
+              <Input type="number" min={1} {...createForm.register('ordinal')} />
+            </FormField>
+          </div>
+          <FormField label="创作要求" error={createForm.formState.errors.instruction?.message}>
+            <Textarea rows={4} {...createForm.register('instruction')} placeholder="描述章节生成要求" />
+          </FormField>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setShowCreateDialog(false)}>取消</Button>
+            <Button type="submit" disabled={isStreaming} leftIcon={<WandSparkles className="h-3.5 w-3.5" />}>生成章节</Button>
+          </DialogFooter>
+        </form>
+      </Dialog>
     </div>
   )
 }

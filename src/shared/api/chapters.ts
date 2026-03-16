@@ -69,6 +69,12 @@ export function confirmChapter(chapterId: string): Promise<Chapter> {
   })
 }
 
+export function unconfirmChapter(chapterId: string): Promise<Chapter> {
+  return request<Chapter>(`/chapters/${chapterId}/unconfirm`, {
+    method: 'POST',
+  })
+}
+
 export function createChapterStream(
   projectId: string,
   input: CreateChapterInput,
@@ -94,6 +100,18 @@ export function rewriteChapterStream(
   signal?: AbortSignal,
 ): void {
   streamRequest(`/chapters/${chapterId}/rewrite/stream`, input, callbacks, signal)
+}
+
+export type SuggestChapterInput = { content_before_cursor: string }
+export type SuggestResponse = { suggestion: string }
+
+export function suggestChapterStream(
+  chapterId: string,
+  input: SuggestChapterInput,
+  callbacks: SSECallbacks<SuggestResponse>,
+  signal?: AbortSignal,
+): void {
+  streamRequest(`/chapters/${chapterId}/suggest/stream`, input, callbacks, signal)
 }
 
 export type UpdateChapterInput = {
