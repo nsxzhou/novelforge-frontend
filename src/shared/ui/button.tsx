@@ -1,7 +1,8 @@
-import type { ButtonHTMLAttributes, PropsWithChildren } from 'react'
+import type { ButtonHTMLAttributes, PropsWithChildren, ReactNode } from 'react'
+import { motion } from 'framer-motion'
 import { cn } from '@/shared/lib/cn'
 
-type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'danger' | 'ghost'
+type ButtonVariant = 'primary' | 'secondary' | 'tonal' | 'ghost' | 'danger'
 type ButtonSize = 'sm' | 'md' | 'lg'
 
 type ButtonProps = PropsWithChildren<
@@ -9,26 +10,28 @@ type ButtonProps = PropsWithChildren<
     variant?: ButtonVariant
     size?: ButtonSize
     loading?: boolean
+    leftIcon?: ReactNode
+    rightIcon?: ReactNode
   }
 >
 
 const variantClassMap: Record<ButtonVariant, string> = {
   primary:
-    'bg-gradient-to-r from-accent to-accent-secondary text-white shadow-sm hover:shadow-accent hover:-translate-y-0.5 hover:brightness-105 active:scale-[0.98]',
+    'bg-ink-500 text-white shadow-sm hover:bg-ink-600 hover:shadow-glow focus-visible:ring-ink-500/30',
   secondary:
-    'bg-transparent border border-border text-foreground hover:bg-muted hover:border-accent/30 hover:shadow-sm',
-  outline:
-    'border border-accent/30 bg-transparent text-accent hover:bg-accent hover:text-white hover:shadow-accent',
-  danger:
-    'bg-red-500 text-white hover:bg-red-600 hover:-translate-y-0.5 hover:shadow-sm active:scale-[0.98]',
+    'bg-transparent border border-border text-foreground hover:bg-stone-50 hover:border-stone-300',
+  tonal:
+    'bg-ink-50 text-ink-700 hover:bg-ink-100 border border-ink-100',
   ghost:
-    'bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted',
+    'bg-transparent text-muted-foreground hover:text-foreground hover:bg-stone-100',
+  danger:
+    'bg-red-500 text-white hover:bg-red-600 shadow-sm focus-visible:ring-red-500/30',
 }
 
 const sizeClassMap: Record<ButtonSize, string> = {
-  sm: 'h-9 px-3 text-xs gap-1.5',
-  md: 'h-11 px-4 text-sm gap-2',
-  lg: 'h-12 px-6 text-sm gap-2',
+  sm: 'h-8 px-3 text-xs gap-1.5 rounded-md',
+  md: 'h-9 px-4 text-sm gap-2 rounded-lg',
+  lg: 'h-11 px-5 text-sm gap-2 rounded-lg',
 }
 
 export function Button({
@@ -38,12 +41,16 @@ export function Button({
   size = 'md',
   loading = false,
   disabled,
+  leftIcon,
+  rightIcon,
   ...props
 }: ButtonProps) {
   return (
-    <button
+    <motion.button
+      whileTap={{ scale: 0.97 }}
+      transition={{ duration: 0.1 }}
       className={cn(
-        'inline-flex items-center justify-center rounded-lg font-medium transition-all duration-200',
+        'inline-flex items-center justify-center font-medium transition-all duration-150',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
         'disabled:pointer-events-none disabled:opacity-50',
         variantClassMap[variant],
@@ -51,7 +58,7 @@ export function Button({
         className,
       )}
       disabled={disabled || loading}
-      {...props}
+      {...(props as React.ComponentProps<typeof motion.button>)}
     >
       {loading ? (
         <>
@@ -62,8 +69,12 @@ export function Button({
           处理中...
         </>
       ) : (
-        children
+        <>
+          {leftIcon && <span className="shrink-0">{leftIcon}</span>}
+          {children}
+          {rightIcon && <span className="shrink-0">{rightIcon}</span>}
+        </>
       )}
-    </button>
+    </motion.button>
   )
 }

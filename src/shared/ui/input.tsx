@@ -1,5 +1,8 @@
-import { forwardRef, type InputHTMLAttributes, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
+import { forwardRef, useState, type InputHTMLAttributes, type SelectHTMLAttributes, type TextareaHTMLAttributes, type ReactNode } from 'react'
 import { cn } from '@/shared/lib/cn'
+
+const baseInputClasses =
+  'w-full rounded-lg border border-border bg-transparent text-sm text-foreground placeholder:text-stone-400 transition-all duration-150 focus:border-ink-400 focus:ring-2 focus:ring-ink-500/15 focus:outline-none'
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Input(
   props,
@@ -9,13 +12,7 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
     <input
       {...props}
       ref={ref}
-      className={cn(
-        'h-12 w-full rounded-lg border border-border bg-transparent px-3 text-sm text-foreground',
-        'placeholder:text-muted-foreground/50',
-        'transition-colors duration-200',
-        'focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none',
-        props.className,
-      )}
+      className={cn(baseInputClasses, 'h-10 px-3', props.className)}
     />
   )
 })
@@ -31,9 +28,8 @@ export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSel
       {...props}
       ref={ref}
       className={cn(
-        'h-12 w-full rounded-lg border border-border bg-transparent px-3 text-sm text-foreground',
-        'transition-colors duration-200',
-        'focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none',
+        baseInputClasses,
+        'h-10 px-3 appearance-none bg-[url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2378716C%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E")] bg-[length:16px] bg-[right_8px_center] bg-no-repeat pr-8',
         props.className,
       )}
     />
@@ -42,23 +38,63 @@ export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSel
 
 Select.displayName = 'Select'
 
-export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(function Textarea(
-  props,
-  ref,
-) {
+export const Textarea = forwardRef<
+  HTMLTextAreaElement,
+  TextareaHTMLAttributes<HTMLTextAreaElement> & { showCount?: boolean; maxLength?: number }
+>(function Textarea({ showCount, maxLength, ...props }, ref) {
+  const [length, setLength] = useState((props.value as string)?.length ?? (props.defaultValue as string)?.length ?? 0)
+
   return (
-    <textarea
-      {...props}
-      ref={ref}
-      className={cn(
-        'w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm text-foreground',
-        'placeholder:text-muted-foreground/50',
-        'transition-colors duration-200',
-        'focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none',
-        props.className,
+    <div className="relative">
+      <textarea
+        {...props}
+        ref={ref}
+        maxLength={maxLength}
+        onChange={(e) => {
+          setLength(e.target.value.length)
+          props.onChange?.(e)
+        }}
+        className={cn(baseInputClasses, 'px-3 py-2.5 leading-relaxed', props.className)}
+      />
+      {showCount && maxLength && (
+        <span className="absolute bottom-2 right-3 text-xs text-stone-400">
+          {length}/{maxLength}
+        </span>
       )}
-    />
+    </div>
   )
 })
 
 Textarea.displayName = 'Textarea'
+
+export function FormField({
+  label,
+  description,
+  error,
+  required,
+  children,
+  className,
+}: {
+  label: string
+  description?: string
+  error?: string
+  required?: boolean
+  children: ReactNode
+  className?: string
+}) {
+  return (
+    <div className={cn('space-y-1.5', className)}>
+      <label className="block text-sm font-medium text-foreground">
+        {label}
+        {required && <span className="ml-0.5 text-red-500">*</span>}
+      </label>
+      {description && (
+        <p className="text-xs text-muted-foreground">{description}</p>
+      )}
+      {children}
+      {error && (
+        <p className="text-xs font-medium text-red-600">{error}</p>
+      )}
+    </div>
+  )
+}

@@ -3,15 +3,18 @@
 @tailwind utilities;
 
 :root {
-  --color-background: #fafafa;
-  --color-foreground: #0f172a;
-  --color-muted: #f1f5f9;
-  --color-muted-foreground: #64748b;
-  --color-accent: #0052ff;
-  --color-accent-secondary: #4d7cff;
-  --color-border: #e2e8f0;
+  --color-background: #FAFAF9;
+  --color-foreground: #1C1917;
+  --color-muted: #F5F5F4;
+  --color-muted-foreground: #78716C;
+  --color-accent: #6366F1;
+  --color-accent-light: #818CF8;
+  --color-border: #E7E5E4;
   --color-card: #ffffff;
-  --color-ring: #0052ff;
+  --color-ring: #6366F1;
+  --color-success: #059669;
+  --color-warning: #D97706;
+  --color-danger: #DC2626;
 }
 
 html,
@@ -60,8 +63,8 @@ a:focus-visible {
 }
 
 ::selection {
-  background: rgba(0, 82, 255, 0.12);
-  color: #0f172a;
+  background: rgba(99, 102, 241, 0.12);
+  color: #1C1917;
 }
 
 @layer components {
@@ -72,7 +75,7 @@ a:focus-visible {
 
 @layer utilities {
   .gradient-text {
-    background: linear-gradient(to right, #0052ff, #4d7cff);
+    background: linear-gradient(135deg, #6366F1, #818CF8);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -87,24 +90,64 @@ a:focus-visible {
     border-radius: 0.125rem;
     background: linear-gradient(
       to right,
-      rgba(0, 82, 255, 0.15),
-      rgba(77, 124, 255, 0.1)
+      rgba(99, 102, 241, 0.15),
+      rgba(129, 140, 248, 0.1)
     );
   }
 
   .dot-pattern {
-    background-image: radial-gradient(circle, white 1px, transparent 1px);
-    background-size: 32px 32px;
-    opacity: 0.03;
+    background-image: radial-gradient(circle, #D6D3D1 1px, transparent 1px);
+    background-size: 24px 24px;
+    opacity: 0.4;
   }
 
   .radial-glow {
     background: radial-gradient(
       circle at 50% 50%,
-      rgba(0, 82, 255, 0.06),
+      rgba(99, 102, 241, 0.06),
       transparent 70%
     );
   }
+
+  .gradient-surface {
+    background: linear-gradient(
+      135deg,
+      rgba(99, 102, 241, 0.04),
+      rgba(129, 140, 248, 0.02)
+    );
+  }
+
+  .backdrop-blur-card {
+    backdrop-filter: blur(12px) saturate(180%);
+    -webkit-backdrop-filter: blur(12px) saturate(180%);
+  }
+}
+
+.ghost-text {
+  color: var(--color-muted-foreground);
+  opacity: 0.5;
+  pointer-events: none;
+  user-select: none;
+  font-style: italic;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #D6D3D1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #A8A29E;
 }
 
 @media (prefers-reduced-motion: reduce) {
