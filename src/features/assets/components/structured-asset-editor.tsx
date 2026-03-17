@@ -8,12 +8,15 @@ import {
   serializeStructuredContent,
   createDefaultStructuredContent,
   migrateToStructured,
+  ASSET_TYPE_TO_SCHEMA,
   type StructuredContent,
 } from '../schemas/asset-content'
 import { CharacterForm } from './character-form'
 import { WorldbuildingForm } from './worldbuilding-form'
+import { OutlineForm } from './outline-form'
 import type { CharacterData } from '../schemas/character-schema'
 import type { WorldbuildingData } from '../schemas/worldbuilding-schema'
+import type { OutlineData } from '../schemas/outline-schema'
 
 type StructuredAssetEditorProps = {
   assetType: AssetType
@@ -25,7 +28,7 @@ export function StructuredAssetEditor({ assetType, content, onChange }: Structur
   const [mode, setMode] = useState<'structured' | 'raw'>('structured')
   const [rawContent, setRawContent] = useState(content)
 
-  const supportsStructured = assetType === 'character' || assetType === 'worldbuilding'
+  const supportsStructured = assetType in ASSET_TYPE_TO_SCHEMA
   const format = detectContentFormat(content, assetType)
 
   // Reset mode when asset type changes
@@ -75,7 +78,7 @@ export function StructuredAssetEditor({ assetType, content, onChange }: Structur
     }
   }
 
-  // Outline or unsupported type: always raw
+  // Unsupported type: always raw
   if (!supportsStructured) {
     return (
       <Textarea
@@ -126,9 +129,14 @@ export function StructuredAssetEditor({ assetType, content, onChange }: Structur
             defaultValues={defaultData as CharacterData}
             onChange={handleStructuredChange}
           />
-        ) : (
+        ) : assetType === 'worldbuilding' ? (
           <WorldbuildingForm
             defaultValues={defaultData as WorldbuildingData}
+            onChange={handleStructuredChange}
+          />
+        ) : (
+          <OutlineForm
+            defaultValues={defaultData as OutlineData}
             onChange={handleStructuredChange}
           />
         )}

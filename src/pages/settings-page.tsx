@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { motion } from 'framer-motion'
 import { Settings, Cpu, Palette, Bell, Globe } from 'lucide-react'
 import { LLMProvidersPanel } from '@/features/llm-providers/llm-providers-panel'
 import { cn } from '@/shared/lib/cn'
@@ -21,12 +20,12 @@ export function SettingsPage() {
       {/* Header */}
       <div className="space-y-1">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-ink-50 text-ink-500">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted text-foreground">
             <Settings className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="font-display text-2xl tracking-tight">
-              全局<span className="gradient-text">设置</span>
+            <h1 className="text-2xl font-light tracking-tight">
+              全局设置
             </h1>
             <p className="text-sm text-muted-foreground">
               管理 AI 服务配置与应用偏好
@@ -50,23 +49,19 @@ export function SettingsPage() {
                   className={cn(
                     'relative flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition-colors',
                     isActive
-                      ? 'bg-ink-50 font-medium text-ink-700'
+                      ? 'bg-muted font-medium text-foreground'
                       : section.available
-                        ? 'text-stone-600 hover:bg-stone-100 hover:text-foreground'
-                        : 'text-stone-300 cursor-not-allowed',
+                        ? 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                        : 'text-slate-300 cursor-not-allowed',
                   )}
                 >
                   {isActive && (
-                    <motion.div
-                      layoutId="settings-nav-indicator"
-                      className="absolute left-0 top-1 bottom-1 w-[3px] rounded-full bg-ink-500"
-                      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                    />
+                    <div className="absolute left-0 top-1 bottom-1 w-[3px] rounded-full bg-[#0F172A]" />
                   )}
                   <Icon className="h-4 w-4 shrink-0" />
                   {section.label}
                   {!section.available && (
-                    <span className="ml-auto text-[10px] font-medium text-stone-300">
+                    <span className="ml-auto text-[10px] font-medium text-slate-300">
                       即将推出
                     </span>
                   )}
@@ -89,10 +84,10 @@ export function SettingsPage() {
                 className={cn(
                   'flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
                   isActive
-                    ? 'bg-ink-50 text-ink-700'
+                    ? 'bg-muted text-foreground'
                     : section.available
-                      ? 'text-stone-500 hover:bg-stone-100'
-                      : 'text-stone-300',
+                      ? 'text-muted-foreground hover:bg-muted'
+                      : 'text-slate-300',
                 )}
               >
                 <Icon className="h-4 w-4" />
@@ -106,7 +101,7 @@ export function SettingsPage() {
         <div className="flex-1 min-w-0">
           {active === 'ai-providers' && <LLMProvidersPanel />}
           {active !== 'ai-providers' && (
-            <div className="flex items-center justify-center rounded-xl border border-dashed border-stone-300 bg-stone-50/50 py-24 text-sm text-muted-foreground">
+            <div className="flex items-center justify-center rounded-lg border border-dashed border-[#E2E8F0] bg-[#F8FAFC] py-24 text-sm text-muted-foreground">
               此功能即将推出
             </div>
           )}

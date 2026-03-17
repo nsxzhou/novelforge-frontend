@@ -58,7 +58,7 @@ export function RewritePopover({
   }
 
   return (
-    <div className="rounded-xl border border-amber-500/20 bg-amber-50 p-4 shadow-lg">
+    <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
       <div className="mb-3 flex items-center justify-between">
         <h4 className="text-sm font-extrabold uppercase tracking-wide text-amber-600">
           改写选中文本

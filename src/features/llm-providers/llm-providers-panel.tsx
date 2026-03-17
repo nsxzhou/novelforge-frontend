@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -164,12 +164,18 @@ export function LLMProvidersPanel() {
 
   const showForm = editorMode.type !== 'closed'
 
+  const editingProviderId = editorMode.type === 'edit' ? editorMode.provider.id : null
+
+  const visibleProviders = providersQuery.data?.filter(
+    (provider) => provider.id !== editingProviderId
+  )
+
   return (
     <div className="space-y-6">
       {/* Header row */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="font-display text-lg tracking-tight">AI Provider 配置</h2>
+          <h2 className="text-lg font-light tracking-tight">AI Provider 配置</h2>
           <p className="text-sm text-muted-foreground">管理 LLM 服务商的模型、地址和密钥</p>
         </div>
         {editorMode.type === 'closed' && (
@@ -181,9 +187,9 @@ export function LLMProvidersPanel() {
 
       {/* Form panel */}
       {showForm && (
-        <Card variant="elevated">
+        <Card>
           <div className="mb-4">
-            <h3 className="text-sm font-semibold text-foreground">
+            <h3 className="text-sm font-medium text-foreground">
               {editorMode.type === 'create' ? '添加新 Provider' : '编辑 Provider'}
             </h3>
           </div>
@@ -249,13 +255,19 @@ export function LLMProvidersPanel() {
         />
       ) : null}
 
+      {visibleProviders && visibleProviders.length === 0 && editorMode.type === 'edit' ? (
+        <div className="text-center py-8 text-sm text-muted-foreground">
+          正在编辑: {editorMode.provider.provider}/{editorMode.provider.model}
+        </div>
+      ) : null}
+
       <div className="space-y-3">
-        {providersQuery.data?.map((provider) => (
+        {visibleProviders?.map((provider) => (
           <Card key={provider.id} padding="md">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0 flex-1 space-y-2">
                 <div className="flex items-center gap-3">
-                  <h3 className="text-base font-semibold tracking-tight text-foreground truncate">
+                  <h3 className="text-base font-medium tracking-tight text-foreground truncate">
                     {provider.model}
                   </h3>
                   <Badge variant={provider.enabled ? 'success' : 'default'} dot>
@@ -264,21 +276,21 @@ export function LLMProvidersPanel() {
                 </div>
                 <div className="space-y-1 text-xs text-muted-foreground">
                   <p className="flex items-center gap-1.5">
-                    <span className="font-medium text-stone-500">Provider:</span>
+                    <span className="font-medium text-foreground">Provider:</span>
                     {provider.provider}
                   </p>
                   <p className="truncate">
-                    <span className="font-medium text-stone-500">URL:</span>{' '}
+                    <span className="font-medium text-foreground">URL:</span>{' '}
                     {provider.base_url}
                   </p>
                   <p>
-                    <span className="font-medium text-stone-500">Key:</span>{' '}
-                    <code className="rounded bg-stone-100 px-1 py-0.5 font-mono text-[11px]">
+                    <span className="font-medium text-foreground">Key:</span>{' '}
+                    <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">
                       {maskApiKey(provider.api_key)}
                     </code>
                   </p>
                 </div>
-                <div className="flex gap-4 text-[11px] text-stone-400">
+                <div className="flex gap-4 text-[11px] text-muted-foreground">
                   <span>Priority: {provider.priority}</span>
                   <span>Timeout: {provider.timeout_seconds}s</span>
                 </div>

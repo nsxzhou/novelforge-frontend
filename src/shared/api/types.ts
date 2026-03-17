@@ -1,4 +1,4 @@
-export type ProjectStatus = 'draft' | 'active' | 'archived'
+﻿export type ProjectStatus = 'draft' | 'active' | 'archived'
 
 export type Project = {
   id: string
@@ -50,7 +50,6 @@ export type GenerationRecord = {
   id: string
   project_id: string
   chapter_id?: string
-  conversation_id?: string
   kind: GenerationKind
   status: GenerationStatus
   input_snapshot_ref: string
@@ -58,30 +57,6 @@ export type GenerationRecord = {
   token_usage: number
   duration_millis: number
   error_message?: string
-  created_at: string
-  updated_at: string
-}
-
-export type ConversationMessage = {
-  id: string
-  role: 'system' | 'user' | 'assistant'
-  content: string
-  created_at: string
-}
-
-export type PendingSuggestion = {
-  title?: string
-  summary?: string
-  content?: string
-}
-
-export type Conversation = {
-  id: string
-  project_id: string
-  target_type: 'project' | 'asset'
-  target_id: string
-  messages: ConversationMessage[]
-  pending_suggestion?: PendingSuggestion
   created_at: string
   updated_at: string
 }

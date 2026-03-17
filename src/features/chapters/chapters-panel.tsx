@@ -34,6 +34,7 @@ import { useToast } from '@/shared/ui/toast'
 import { getErrorMessage } from '@/shared/lib/error-message'
 import { variants } from '@/shared/lib/motion'
 import { cn } from '@/shared/lib/cn'
+import { wordCount } from '@/shared/lib/format'
 import { TiptapEditor, type TextSelection } from './components/tiptap-editor'
 import { RewritePopover } from './components/rewrite-popover'
 
@@ -58,10 +59,6 @@ type RewriteFormValue = z.infer<typeof rewriteSchema>
 
 type AITab = 'continue' | 'rewrite'
 
-function wordCount(text: string): number {
-  return text.replace(/\s/g, '').length
-}
-
 export function ChaptersPanel({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient()
   const { toast } = useToast()
@@ -74,7 +71,6 @@ export function ChaptersPanel({ projectId }: { projectId: string }) {
   const [aiTab, setAITab] = useState<AITab>('continue')
   const abortRef = useRef<AbortController | null>(null)
 
-  // Tiptap editor state
   const [editedContent, setEditedContent] = useState<string | null>(null)
   const [selection, setSelection] = useState<TextSelection | null>(null)
   const [showRewritePopover, setShowRewritePopover] = useState(false)
@@ -242,7 +238,7 @@ export function ChaptersPanel({ projectId }: { projectId: string }) {
       {/* Left: Chapter list */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-foreground">章节列表</h3>
+          <h3 className="text-sm font-medium text-foreground">章节列表</h3>
           <Button size="sm" onClick={() => setShowCreateDialog(true)} leftIcon={<Plus className="h-3.5 w-3.5" />}>
             新章节
           </Button>
@@ -269,8 +265,8 @@ export function ChaptersPanel({ projectId }: { projectId: string }) {
                 className={cn(
                   'w-full rounded-lg px-3 py-2.5 text-left transition-all duration-150',
                   isActive
-                    ? 'bg-card border-l-[3px] border-l-ink-500 border border-border shadow-xs'
-                    : 'hover:bg-stone-50 border border-transparent',
+                    ? 'bg-card border-l-[3px] border-l-[#0F172A] border border-border'
+                    : 'hover:bg-muted border border-transparent',
                 )}
               >
                 <div className="flex items-center justify-between gap-2">
@@ -281,7 +277,7 @@ export function ChaptersPanel({ projectId }: { projectId: string }) {
                     {isConfirmed ? '已确认' : '草稿'}
                   </Badge>
                 </div>
-                <p className="mt-0.5 text-[11px] text-stone-400">
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
                   {wordCount(chapter.content)} 字
                 </p>
               </motion.button>
@@ -310,9 +306,9 @@ export function ChaptersPanel({ projectId }: { projectId: string }) {
 
         {/* Streaming output */}
         {isStreaming && (
-          <Card variant="elevated" className="border-ink-100">
+          <Card>
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-medium text-ink-500">AI 生成中</span>
+              <span className="text-xs font-medium text-foreground">AI 生成中</span>
               <Button variant="danger" size="sm" onClick={cancelStream} leftIcon={<Square className="h-3.5 w-3.5" />}>
                 取消
               </Button>
@@ -335,7 +331,7 @@ export function ChaptersPanel({ projectId }: { projectId: string }) {
             <Card>
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <h3 className="font-display text-lg font-semibold tracking-tight">{selectedChapter.title}</h3>
+                  <h3 className="text-lg font-medium tracking-tight">{selectedChapter.title}</h3>
                   <Badge variant={selectedChapter.status === 'confirmed' ? 'success' : 'warning'}>
                     {selectedChapter.status === 'confirmed' ? '已确认' : '草稿'}
                   </Badge>
@@ -343,7 +339,7 @@ export function ChaptersPanel({ projectId }: { projectId: string }) {
                 </div>
                 <div className="flex items-center gap-2">
                   {hasUnsavedChanges && isDraft && (
-                    <Button variant="tonal" size="sm" loading={saveMutation.isPending} onClick={handleSave} leftIcon={<Save className="h-3.5 w-3.5" />}>
+                    <Button variant="secondary" size="sm" loading={saveMutation.isPending} onClick={handleSave} leftIcon={<Save className="h-3.5 w-3.5" />}>
                       保存
                     </Button>
                   )}
@@ -384,11 +380,11 @@ export function ChaptersPanel({ projectId }: { projectId: string }) {
                 />
               </div>
 
-              <div className="mt-3 flex items-center justify-between text-xs text-stone-400">
+              <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
                 <span><AlignLeft className="inline h-3 w-3 mr-1" />{wordCount(editedContent ?? selectedChapter.content)} 字</span>
                 <div className="flex items-center gap-4">
                   {isDraft && (
-                    <span className="text-stone-300">输入后稍候，AI 将自动提供续写建议（Tab 接受 / Esc 取消）</span>
+                    <span className="text-slate-300">输入后稍候，AI 将自动提供续写建议（Tab 接受 / Esc 取消）</span>
                   )}
                   {selectedChapter.current_draft_confirmed_at && (
                     <span className="text-emerald-600">已确认于 {selectedChapter.current_draft_confirmed_at}</span>
@@ -399,12 +395,12 @@ export function ChaptersPanel({ projectId }: { projectId: string }) {
 
             {/* Selection rewrite popover */}
             {selection && isDraft && !showRewritePopover && (
-                <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                  <Button variant="tonal" size="sm" onClick={() => setShowRewritePopover(true)} leftIcon={<WandSparkles className="h-3.5 w-3.5" />}>
-                    改写选中文本
-                  </Button>
-                </motion.div>
-              )}
+              <div className="animate-fade-in-up">
+                <Button variant="secondary" size="sm" onClick={() => setShowRewritePopover(true)} leftIcon={<WandSparkles className="h-3.5 w-3.5" />}>
+                  改写选中文本
+                </Button>
+              </div>
+            )}
 
             {showRewritePopover && selection && selectedChapterId && (
               <RewritePopover
@@ -415,7 +411,7 @@ export function ChaptersPanel({ projectId }: { projectId: string }) {
               />
             )}
 
-            {/* AI operations — unified card with tabs */}
+            {/* AI operations */}
             <Card>
               <Tabs
                 tabs={[

@@ -1,16 +1,14 @@
-import { useMemo, useState } from 'react'
+﻿import { useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Download, PencilLine, Trash2, X, Check,
-  LayoutGrid, Boxes, MessageSquare, BookOpen, Wrench,
+  LayoutGrid, Boxes, BookOpen, Wrench,
   FileText, Calendar, ChevronRight,
 } from 'lucide-react'
-import { motion } from 'framer-motion'
 import { getProject, updateProject, deleteProject } from '@/shared/api/projects'
 import { listAssets } from '@/shared/api/assets'
 import { listChapters } from '@/shared/api/chapters'
-import { listConversations } from '@/shared/api/conversations'
 import { exportProject } from '@/shared/api/export'
 import { queryKeys } from '@/shared/api/queries'
 import { LoadingState, ErrorState } from '@/shared/ui/feedback'
@@ -24,21 +22,12 @@ import { Dropdown, DropdownItem } from '@/shared/ui/dropdown'
 import { useToast } from '@/shared/ui/toast'
 import { cn } from '@/shared/lib/cn'
 import { AssetsPanel } from '@/features/assets/assets-panel'
-import { ConversationsPanel } from '@/features/conversations/conversations-panel'
 import { ChaptersPanel } from '@/features/chapters/chapters-panel'
 import { PromptsPanel } from '@/features/prompts/prompts-panel'
 import { getErrorMessage } from '@/shared/lib/error-message'
+import { getProjectStatusLabel, formatDate } from '@/shared/lib/format'
 
-type TabKey = 'overview' | 'assets' | 'conversations' | 'chapters' | 'prompts'
-
-function getProjectStatusLabel(status: string): string {
-  switch (status) {
-    case 'draft': return '草稿'
-    case 'active': return '进行中'
-    case 'archived': return '已归档'
-    default: return status
-  }
-}
+type TabKey = 'overview' | 'assets' | 'chapters' | 'prompts'
 
 function getProjectStatusVariant(status: string) {
   switch (status) {
@@ -46,14 +35,6 @@ function getProjectStatusVariant(status: string) {
     case 'draft': return 'warning' as const
     case 'archived': return 'default' as const
     default: return 'default' as const
-  }
-}
-
-function formatDate(iso: string) {
-  try {
-    return new Date(iso).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })
-  } catch {
-    return iso
   }
 }
 
@@ -89,12 +70,6 @@ export function ProjectWorkbenchPage() {
   const chaptersQuery = useQuery({
     queryKey: queryKeys.chapters(projectId),
     queryFn: () => listChapters(projectId, 200, 0),
-    enabled: Boolean(projectId),
-  })
-
-  const conversationsQuery = useQuery({
-    queryKey: queryKeys.conversations(projectId, 'project', projectId),
-    queryFn: () => listConversations({ projectId, targetType: 'project', targetId: projectId, limit: 200, offset: 0 }),
     enabled: Boolean(projectId),
   })
 
@@ -159,7 +134,6 @@ export function ProjectWorkbenchPage() {
   const tabs: { key: TabKey; label: string; icon: React.ReactNode; count?: number }[] = [
     { key: 'overview', label: '概览', icon: <LayoutGrid className="h-4 w-4" /> },
     { key: 'assets', label: '设定工坊', icon: <Boxes className="h-4 w-4" />, count: assetsQuery.data?.length },
-    { key: 'conversations', label: '对话微调', icon: <MessageSquare className="h-4 w-4" />, count: conversationsQuery.data?.length },
     { key: 'chapters', label: '章节', icon: <BookOpen className="h-4 w-4" />, count: chaptersQuery.data?.length },
     { key: 'prompts', label: 'Prompts', icon: <Wrench className="h-4 w-4" /> },
   ]
@@ -169,16 +143,11 @@ export function ProjectWorkbenchPage() {
     const project = projectQuery.data
     const assets = assetsQuery.data ?? []
     const chapters = chaptersQuery.data ?? []
-    const conversations = conversationsQuery.data ?? []
 
     switch (activeTab) {
       case 'overview':
         return (
-          <motion.div
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="grid gap-6 lg:grid-cols-[1fr_320px]"
-          >
+          <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
             {/* Left: Project details */}
             <Card>
               {isEditing ? (
@@ -210,7 +179,7 @@ export function ProjectWorkbenchPage() {
                 <div className="space-y-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="space-y-2">
-                      <h2 className="font-display text-xl tracking-tight">{project.title}</h2>
+                      <h2 className="text-xl font-light tracking-tight">{project.title}</h2>
                       <Badge variant={getProjectStatusVariant(project.status)} dot>
                         {getProjectStatusLabel(project.status)}
                       </Badge>
@@ -222,7 +191,7 @@ export function ProjectWorkbenchPage() {
                   <p className="whitespace-pre-wrap text-sm leading-7 text-muted-foreground">
                     {project.summary}
                   </p>
-                  <div className="flex items-center gap-4 text-xs text-stone-400">
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1">
                       <Calendar className="h-3 w-3" />
                       创建于 {formatDate(project.created_at)}
@@ -248,9 +217,8 @@ export function ProjectWorkbenchPage() {
             {/* Right: Stats cards */}
             <div className="space-y-4">
               {[
-                { label: '设定资产', value: assets.length, icon: Boxes, color: 'text-ink-500', bg: 'bg-ink-50' },
+                { label: '设定资产', value: assets.length, icon: Boxes, color: 'text-foreground', bg: 'bg-muted' },
                 { label: '章节数', value: chapters.length, icon: BookOpen, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-                { label: '对话数', value: conversations.length, icon: MessageSquare, color: 'text-amber-600', bg: 'bg-amber-50' },
               ].map((stat) => {
                 const Icon = stat.icon
                 return (
@@ -260,7 +228,7 @@ export function ProjectWorkbenchPage() {
                         <Icon className="h-5 w-5" />
                       </div>
                       <div>
-                        <p className="text-2xl font-semibold tracking-tight text-foreground">{stat.value}</p>
+                        <p className="text-2xl font-light tracking-tight text-foreground">{stat.value}</p>
                         <p className="text-xs text-muted-foreground">{stat.label}</p>
                       </div>
                     </div>
@@ -268,12 +236,10 @@ export function ProjectWorkbenchPage() {
                 )
               })}
             </div>
-          </motion.div>
+          </div>
         )
       case 'assets':
         return <AssetsPanel projectId={project.id} />
-      case 'conversations':
-        return <ConversationsPanel project={project} assets={assets} />
       case 'chapters':
         return <ChaptersPanel projectId={project.id} />
       case 'prompts':
@@ -281,8 +247,9 @@ export function ProjectWorkbenchPage() {
       default:
         return null
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    activeTab, assetsQuery.data, chaptersQuery.data, conversationsQuery.data,
+    activeTab, assetsQuery.data, chaptersQuery.data,
     projectQuery.data, isEditing, editTitle, editSummary, editStatus,
     updateMutation.isPending, updateMutation.error, showDeleteDialog,
   ])
@@ -293,18 +260,18 @@ export function ProjectWorkbenchPage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-1">
           {/* Breadcrumb */}
-          <div className="flex items-center gap-1.5 text-xs text-stone-400">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <span>项目</span>
             <ChevronRight className="h-3 w-3" />
             <span className="text-foreground font-medium">
               {projectQuery.data?.title ?? '加载中...'}
             </span>
           </div>
-          <h1 className="font-display text-2xl tracking-tight text-foreground">
+          <h1 className="text-2xl font-light tracking-tight text-foreground">
             {projectQuery.data?.title ?? '项目工作台'}
           </h1>
           <p className="text-sm text-muted-foreground">
-            统一管理设定资产、对话微调与章节生成流程
+            统一管理设定资产与章节生成流程
           </p>
         </div>
         <div className="flex items-center gap-2">

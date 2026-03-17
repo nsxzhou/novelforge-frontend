@@ -42,8 +42,8 @@ export function EditorToolbar({ editor, ghostTextEnabled, onToggleGhostText }: E
           title={ghostTextEnabled ? '关闭 AI 续写建议' : '开启 AI 续写建议'}
           className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
             ghostTextEnabled
-              ? 'bg-ink-50 text-ink-600 hover:bg-ink-100'
-              : 'bg-muted text-muted-foreground hover:bg-stone-200'
+              ? 'bg-[#0F172A] text-white hover:bg-[#1E293B]'
+              : 'bg-muted text-muted-foreground hover:bg-slate-200'
           }`}
         >
           <Sparkles className="h-3.5 w-3.5" />

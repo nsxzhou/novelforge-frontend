@@ -1,4 +1,5 @@
-import { request } from '@/shared/api/http-client'
+﻿import { request } from '@/shared/api/http-client'
+import { streamRequest, type SSECallbacks } from '@/shared/api/sse-client'
 import type { Project, ProjectStatus } from '@/shared/api/types'
 
 type ProjectListResponse = { projects: Project[] }
@@ -46,4 +47,18 @@ export function deleteProject(projectId: string): Promise<void> {
   return request<void>(`/projects/${projectId}`, {
     method: 'DELETE',
   })
+}
+
+export type BrainstormSuggestion = {
+  title: string
+  summary: string
+}
+
+export function brainstormStream(
+  projectId: string,
+  input: { message: string },
+  callbacks: SSECallbacks<BrainstormSuggestion>,
+  signal?: AbortSignal,
+): void {
+  streamRequest(`/projects/${projectId}/brainstorm/stream`, input, callbacks, signal)
 }

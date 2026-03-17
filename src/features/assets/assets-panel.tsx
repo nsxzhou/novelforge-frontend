@@ -21,9 +21,11 @@ import { Dropdown, DropdownItem, DropdownSeparator } from '@/shared/ui/dropdown'
 import { EmptyState } from '@/shared/ui/empty-state'
 import { useToast } from '@/shared/ui/toast'
 import { getErrorMessage } from '@/shared/lib/error-message'
-import { variants, transitions } from '@/shared/lib/motion'
+import { variants } from '@/shared/lib/motion'
+import { formatRelativeTime } from '@/shared/lib/format'
 import { StructuredAssetEditor } from './components/structured-asset-editor'
 import { AssetContentDisplay } from './components/asset-content-display'
+import { ASSET_TYPE_TO_SCHEMA } from './schemas/asset-content'
 
 const assetSchema = z.object({
   type: z.enum(['worldbuilding', 'character', 'outline']),
@@ -56,21 +58,6 @@ const typeIcons: Record<AssetType, string> = {
   outline: '📋',
 }
 
-function formatRelativeTime(iso: string) {
-  try {
-    const diff = Date.now() - new Date(iso).getTime()
-    const mins = Math.floor(diff / 60000)
-    if (mins < 1) return '刚刚'
-    if (mins < 60) return `${mins} 分钟前`
-    const hours = Math.floor(mins / 60)
-    if (hours < 24) return `${hours} 小时前`
-    const days = Math.floor(hours / 24)
-    return `${days} 天前`
-  } catch {
-    return iso
-  }
-}
-
 export function AssetsPanel({ projectId }: { projectId: string }) {
   const [filterType, setFilterType] = useState<'all' | AssetType>('all')
   const [editorMode, setEditorMode] = useState<AssetEditorMode>({ type: 'closed' })
@@ -92,7 +79,7 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
   const assetForm = useForm<AssetFormValue>({ resolver: zodResolver(assetSchema), defaultValues: defaultAssetValue })
   const generateForm = useForm<GenerateFormValue>({ resolver: zodResolver(generateSchema), defaultValues: defaultGenerateValue })
   const watchedType = assetForm.watch('type')
-  const supportsStructured = watchedType === 'character' || watchedType === 'worldbuilding'
+  const supportsStructured = watchedType in ASSET_TYPE_TO_SCHEMA
 
   const refreshAssets = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: queryKeys.assets(projectId, filterType) })
@@ -159,7 +146,7 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
   function handleAssetSubmit(value: AssetFormValue) {
     const payload = {
       ...value,
-      content_schema: supportsStructured ? (value.type === 'character' ? 'character_v1' : 'worldbuilding_v1') : undefined,
+      content_schema: supportsStructured ? ASSET_TYPE_TO_SCHEMA[value.type] : undefined,
     }
     if (editorMode.type === 'edit') {
       updateMutation.mutate({ assetId: editorMode.asset.id, input: payload })
@@ -188,7 +175,6 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
           className="mb-0"
         />
         <div className="flex items-center gap-2">
-          {/* Filter dropdown */}
           <Dropdown
             trigger={
               <Button variant="ghost" size="sm" leftIcon={<Filter className="h-3.5 w-3.5" />}>
@@ -223,93 +209,79 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
 
       {/* AI Generation panel */}
       {showGenerate && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={transitions.ease}
-          >
-            <Card variant="elevated" className="border-ink-100">
-              <h3 className="text-sm font-semibold text-foreground mb-4">AI 资产生成</h3>
-              <form className="space-y-4" onSubmit={generateForm.handleSubmit(handleGenerateSubmit)}>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <FormField label="目标类型">
-                    <Select {...generateForm.register('type')}>
-                      <option value="worldbuilding">世界观</option>
-                      <option value="character">角色</option>
-                      <option value="outline">大纲</option>
-                    </Select>
-                  </FormField>
-                </div>
-                <FormField label="生成要求">
-                  <Textarea rows={3} {...generateForm.register('instruction')} placeholder="描述你希望生成的资产内容" />
-                </FormField>
-                <div className="flex gap-2">
-                  <Button type="submit" disabled={isStreaming} leftIcon={<Bot className="h-3.5 w-3.5" />}>发起生成</Button>
-                  {isStreaming && <Button type="button" variant="danger" size="sm" onClick={cancelGeneration} leftIcon={<Square className="h-3.5 w-3.5" />}>取消</Button>}
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setShowGenerate(false)}>关闭</Button>
-                </div>
-              </form>
-              {isStreaming && (
-                <div className="mt-4 rounded-lg border border-ink-100 gradient-surface p-4">
-                  <p className="mb-2 text-xs font-medium text-ink-500">AI 生成中</p>
-                  <StreamingText content={streamingContent} isStreaming={isStreaming} />
-                </div>
-              )}
-              {generationResult && !isStreaming && (
-                <p className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-700">{generationResult}</p>
-              )}
-            </Card>
-          </motion.div>
-        )}
+        <Card>
+          <h3 className="text-sm font-medium text-foreground mb-4">AI 资产生成</h3>
+          <form className="space-y-4" onSubmit={generateForm.handleSubmit(handleGenerateSubmit)}>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField label="目标类型">
+                <Select {...generateForm.register('type')}>
+                  <option value="worldbuilding">世界观</option>
+                  <option value="character">角色</option>
+                  <option value="outline">大纲</option>
+                </Select>
+              </FormField>
+            </div>
+            <FormField label="生成要求">
+              <Textarea rows={3} {...generateForm.register('instruction')} placeholder="描述你希望生成的资产内容" />
+            </FormField>
+            <div className="flex gap-2">
+              <Button type="submit" disabled={isStreaming} leftIcon={<Bot className="h-3.5 w-3.5" />}>发起生成</Button>
+              {isStreaming && <Button type="button" variant="danger" size="sm" onClick={cancelGeneration} leftIcon={<Square className="h-3.5 w-3.5" />}>取消</Button>}
+              <Button type="button" variant="ghost" size="sm" onClick={() => setShowGenerate(false)}>关闭</Button>
+            </div>
+          </form>
+          {isStreaming && (
+            <div className="mt-4 rounded-lg border border-[#E2E8F0] bg-muted p-4">
+              <p className="mb-2 text-xs font-medium text-foreground">AI 生成中</p>
+              <StreamingText content={streamingContent} isStreaming={isStreaming} />
+            </div>
+          )}
+          {generationResult && !isStreaming && (
+            <p className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-700">{generationResult}</p>
+          )}
+        </Card>
+      )}
 
       {/* Create/Edit form panel */}
       {showForm && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={transitions.ease}
-          >
-            <Card variant="elevated">
-              <h3 className="text-sm font-semibold text-foreground mb-4">
-                {editorMode.type === 'create' ? '创建资产' : '编辑资产'}
-              </h3>
-              <form className="space-y-4" onSubmit={assetForm.handleSubmit(handleAssetSubmit)}>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <FormField label="资产类型">
-                    <Select {...assetForm.register('type')}>
-                      <option value="worldbuilding">世界观</option>
-                      <option value="character">角色</option>
-                      <option value="outline">大纲</option>
-                    </Select>
-                  </FormField>
-                  <FormField label="资产标题" error={assetForm.formState.errors.title?.message}>
-                    <Input {...assetForm.register('title')} placeholder="例如：主角背景" />
-                  </FormField>
-                </div>
-                <FormField label="资产内容" error={assetForm.formState.errors.content?.message}>
-                  {supportsStructured ? (
-                    <StructuredAssetEditor
-                      assetType={watchedType}
-                      content={assetForm.getValues('content')}
-                      onChange={(val) => assetForm.setValue('content', val, { shouldValidate: true })}
-                    />
-                  ) : (
-                    <Textarea rows={6} {...assetForm.register('content')} placeholder="资产正文内容" />
-                  )}
-                </FormField>
-                {error && <ErrorState text={error} />}
-                <div className="flex gap-2">
-                  <Button type="submit" loading={isAssetSubmitting}>
-                    {editorMode.type === 'create' ? '保存资产' : '更新资产'}
-                  </Button>
-                  <Button type="button" variant="ghost" onClick={handleCancelEdit}>取消</Button>
-                </div>
-              </form>
-            </Card>
-          </motion.div>
-        )}
+        <Card>
+          <h3 className="text-sm font-medium text-foreground mb-4">
+            {editorMode.type === 'create' ? '创建资产' : '编辑资产'}
+          </h3>
+          <form className="space-y-4" onSubmit={assetForm.handleSubmit(handleAssetSubmit)}>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField label="资产类型">
+                <Select {...assetForm.register('type')}>
+                  <option value="worldbuilding">世界观</option>
+                  <option value="character">角色</option>
+                  <option value="outline">大纲</option>
+                </Select>
+              </FormField>
+              <FormField label="资产标题" error={assetForm.formState.errors.title?.message}>
+                <Input {...assetForm.register('title')} placeholder="例如：主角背景" />
+              </FormField>
+            </div>
+            <FormField label="资产内容" error={assetForm.formState.errors.content?.message}>
+              {supportsStructured ? (
+                <StructuredAssetEditor
+                  assetType={watchedType}
+                  content={assetForm.getValues('content')}
+                  onChange={(val) => assetForm.setValue('content', val, { shouldValidate: true })}
+                />
+              ) : (
+                <Textarea rows={6} {...assetForm.register('content')} placeholder="资产正文内容" />
+              )}
+            </FormField>
+            {error && <ErrorState text={error} />}
+            <div className="flex gap-2">
+              <Button type="submit" loading={isAssetSubmitting}>
+                {editorMode.type === 'create' ? '保存资产' : '更新资产'}
+              </Button>
+              <Button type="button" variant="ghost" onClick={handleCancelEdit}>取消</Button>
+            </div>
+          </form>
+        </Card>
+      )}
 
       {/* Asset list */}
       {assetsQuery.isLoading && <LoadingState text="正在加载资产..." />}
@@ -335,21 +307,21 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
           className="space-y-3"
         >
           {sortedAssets.map((asset) => (
-            <motion.div key={asset.id} variants={variants.fadeInUp} transition={transitions.springGentle}>
+            <motion.div key={asset.id} variants={variants.fadeInUp} transition={{ duration: 0.15 }}>
               <Card padding="md" interactive onClick={() => handleEdit(asset)}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2.5 mb-1.5">
                       <span className="text-base">{typeIcons[asset.type]}</span>
-                      <h3 className="text-sm font-semibold tracking-tight text-foreground truncate">
+                      <h3 className="text-sm font-medium tracking-tight text-foreground truncate">
                         {asset.title}
                       </h3>
-                      <Badge variant="accent">{typeLabels[asset.type]}</Badge>
+                      <Badge variant="default">{typeLabels[asset.type]}</Badge>
                     </div>
                     <div className="mb-2">
                       <AssetContentDisplay content={asset.content} assetType={asset.type} />
                     </div>
-                    <div className="flex items-center gap-1.5 text-[11px] text-stone-400">
+                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                       <Clock className="h-3 w-3" />
                       {formatRelativeTime(asset.updated_at)}
                     </div>

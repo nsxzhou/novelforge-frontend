@@ -1,6 +1,7 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { characterSchema, type CharacterData } from '../schemas/character-schema'
+import { parseCommaSeparated } from '../schemas/asset-content'
 import { Input, Textarea } from '@/shared/ui/input'
 
 type CharacterFormProps = {
@@ -47,8 +48,7 @@ export function CharacterForm({ defaultValues, onChange }: CharacterFormProps) {
         <label className="mb-1 block text-sm font-medium text-foreground">性格标签</label>
         <Input
           {...register('personality_tags', {
-            setValueAs: (v: string | string[]) =>
-              Array.isArray(v) ? v : v.split(',').map((s: string) => s.trim()).filter(Boolean),
+            setValueAs: parseCommaSeparated,
           })}
           defaultValue={defaultValues.personality_tags?.join(', ') ?? ''}
           placeholder="用逗号分隔，例如：勇敢, 固执, 善良"

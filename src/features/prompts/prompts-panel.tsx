@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -18,7 +18,7 @@ import { Dialog, DialogFooter } from '@/shared/ui/dialog'
 import { EmptyState } from '@/shared/ui/empty-state'
 import { useToast } from '@/shared/ui/toast'
 import { getErrorMessage } from '@/shared/lib/error-message'
-import { variants, transitions } from '@/shared/lib/motion'
+import { variants } from '@/shared/lib/motion'
 
 const promptSchema = z.object({
   system: z.string().trim().min(1, '请填写 system 模板'),
@@ -32,8 +32,7 @@ const capabilityLabels: Record<string, string> = {
   chapter_generation: '章节生成',
   chapter_continuation: '章节续写',
   chapter_rewrite: '章节改写',
-  conversation: '对话微调',
-  inspiration: '灵感构思',
+  project_refinement: '灵感构思',
 }
 
 function getCapabilityLabel(capability: string): string {
@@ -132,16 +131,16 @@ export function PromptsPanel({ projectId }: { projectId: string }) {
         {prompts.map((prompt) => {
           const isEditing = editingCapability === prompt.capability
           return (
-            <motion.div key={prompt.capability} variants={variants.fadeInUp} transition={transitions.springGentle}>
-              <Card variant={prompt.is_override ? 'highlighted' : 'default'}>
+            <motion.div key={prompt.capability} variants={variants.fadeInUp} transition={{ duration: 0.15 }}>
+              <Card>
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-stone-100 text-stone-500">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
                       <FileText className="h-4 w-4" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-semibold tracking-tight">{getCapabilityLabel(prompt.capability)}</h3>
-                      <Badge variant={prompt.is_override ? 'accent' : 'default'} dot className="mt-0.5">
+                      <h3 className="text-sm font-medium tracking-tight">{getCapabilityLabel(prompt.capability)}</h3>
+                      <Badge variant={prompt.is_override ? 'warning' : 'default'} dot className="mt-0.5">
                         {prompt.is_override ? '已覆盖' : '默认'}
                       </Badge>
                     </div>
@@ -170,7 +169,7 @@ export function PromptsPanel({ projectId }: { projectId: string }) {
                 {prompt.available_variables.length > 0 && (
                   <div className="mb-3 flex flex-wrap gap-1.5">
                     {prompt.available_variables.map((v) => (
-                      <Badge key={v} variant="accent" className="font-mono text-[11px]">{`{{${v}}}`}</Badge>
+                      <Badge key={v} variant="default" className="font-mono text-[11px]">{`{{${v}}}`}</Badge>
                     ))}
                   </div>
                 )}
@@ -178,9 +177,9 @@ export function PromptsPanel({ projectId }: { projectId: string }) {
                 {isEditing ? (
                     <motion.form
                       key="edit"
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ duration: 0.15 }}
                       className="space-y-3"
                       onSubmit={form.handleSubmit(handleSubmit)}
                     >
@@ -198,20 +197,20 @@ export function PromptsPanel({ projectId }: { projectId: string }) {
                       </div>
                     </motion.form>
                   ) : (
-                    <motion.div key="display" className="space-y-2">
+                    <div className="space-y-2">
                       <div>
-                        <p className="text-[11px] font-medium uppercase tracking-wider text-stone-400 mb-1">System</p>
-                        <div className="whitespace-pre-wrap rounded-lg border border-border bg-stone-50 p-3 text-xs text-foreground font-mono leading-relaxed max-h-40 overflow-y-auto">
+                        <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground mb-1">System</p>
+                        <div className="whitespace-pre-wrap rounded-lg border border-border bg-muted p-3 text-xs text-foreground font-mono leading-relaxed max-h-40 overflow-y-auto">
                           {prompt.system || '（空）'}
                         </div>
                       </div>
                       <div>
-                        <p className="text-[11px] font-medium uppercase tracking-wider text-stone-400 mb-1">User</p>
-                        <div className="whitespace-pre-wrap rounded-lg border border-border bg-stone-50 p-3 text-xs text-foreground font-mono leading-relaxed max-h-40 overflow-y-auto">
+                        <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground mb-1">User</p>
+                        <div className="whitespace-pre-wrap rounded-lg border border-border bg-muted p-3 text-xs text-foreground font-mono leading-relaxed max-h-40 overflow-y-auto">
                           {prompt.user || '（空）'}
                         </div>
                       </div>
-                    </motion.div>
+                    </div>
                   )}
               </Card>
             </motion.div>

@@ -1,24 +1,21 @@
-import { useRef, useState } from 'react'
+﻿import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { Sparkles, Send, Check, MessageSquare, BookOpen } from 'lucide-react'
-import { motion } from 'framer-motion'
-import { createProject } from '@/shared/api/projects'
-import {
-  startConversationStream,
-  replyConversationStream,
-  confirmConversation,
-} from '@/shared/api/conversations'
-import type { Conversation } from '@/shared/api/types'
+import { createProject, brainstormStream, updateProject, type BrainstormSuggestion } from '@/shared/api/projects'
 import { queryKeys } from '@/shared/api/queries'
 import { Button } from '@/shared/ui/button'
 import { StreamingText } from '@/shared/ui/streaming-text'
 import { Avatar } from '@/shared/ui/avatar'
 import { Kbd } from '@/shared/ui/kbd'
 import { cn } from '@/shared/lib/cn'
-import { variants, transitions } from '@/shared/lib/motion'
 
 type Phase = 'input' | 'streaming' | 'conversation'
+
+type Message = {
+  role: 'user' | 'assistant'
+  content: string
+}
 
 const inspirationChips = [
   '一个失忆的宇航员在废弃空间站醒来...',
@@ -42,7 +39,7 @@ function StepsIndicator({ phase }: { phase: Phase }) {
             <div
               className={cn(
                 'mx-3 h-px w-8 transition-colors duration-300',
-                s.done ? 'bg-ink-400' : 'bg-stone-200',
+                s.done ? 'bg-[#0F172A]' : 'bg-[#E2E8F0]',
               )}
             />
           )}
@@ -51,8 +48,8 @@ function StepsIndicator({ phase }: { phase: Phase }) {
               className={cn(
                 'flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold transition-all duration-300',
                 s.done
-                  ? 'bg-ink-500 text-white'
-                  : 'border border-stone-300 text-stone-400',
+                  ? 'bg-[#0F172A] text-white'
+                  : 'border border-[#E2E8F0] text-muted-foreground',
               )}
             >
               {s.done ? <Check className="h-3 w-3" /> : i + 1}
@@ -60,7 +57,7 @@ function StepsIndicator({ phase }: { phase: Phase }) {
             <span
               className={cn(
                 'text-xs font-medium transition-colors duration-300',
-                s.done ? 'text-ink-600' : 'text-stone-400',
+                s.done ? 'text-foreground' : 'text-muted-foreground',
               )}
             >
               {s.label}
@@ -79,8 +76,8 @@ function TypingDots() {
       {[0, 1, 2].map((i) => (
         <span
           key={i}
-          className="inline-block h-1.5 w-1.5 rounded-full bg-ink-400/60 animate-bounce-dot"
-          style={{ animationDelay: `${i * 0.16}s` }}
+          className="inline-block h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-pulse"
+          style={{ animationDelay: `${i * 0.2}s` }}
         />
       ))}
     </span>
@@ -96,7 +93,8 @@ export function InspirationPage() {
   const [replyInput, setReplyInput] = useState('')
   const [phase, setPhase] = useState<Phase>('input')
   const [streamingContent, setStreamingContent] = useState('')
-  const [conversation, setConversation] = useState<Conversation | null>(null)
+  const [suggestion, setSuggestion] = useState<BrainstormSuggestion | null>(null)
+  const [messages, setMessages] = useState<Message[]>([])
   const [projectId, setProjectId] = useState<string | null>(null)
   const [isReplying, setIsReplying] = useState(false)
   const [isConfirming, setIsConfirming] = useState(false)
@@ -118,6 +116,7 @@ export function InspirationPage() {
     setPhase('streaming')
     setStreamingContent('')
     setError(null)
+    setMessages([{ role: 'user', content: text }])
 
     try {
       const project = await createProject({
@@ -130,26 +129,23 @@ export function InspirationPage() {
       const controller = new AbortController()
       abortRef.current = controller
 
-      startConversationStream(
+      brainstormStream(
         project.id,
-        {
-          target_type: 'project',
-          target_id: project.id,
-          message: text,
-        },
+        { message: text },
         {
           onContent(chunk) {
             setStreamingContent((prev) => prev + chunk)
             scrollToBottom()
           },
-          onDone(conv) {
-            setConversation(conv)
+          onDone(result) {
+            setSuggestion(result)
             setStreamingContent('')
             setPhase('conversation')
+            setMessages((prev) => [...prev, { role: 'assistant', content: streamingContent }])
             scrollToBottom()
           },
           onError(err) {
-            console.error('Conversation stream error:', err)
+            console.error('Brainstorm stream error:', err)
             setError(String(err))
             setPhase('conversation')
           },
@@ -164,44 +160,29 @@ export function InspirationPage() {
   }
 
   async function handleReply() {
-    if (!conversation || !replyInput.trim()) return
+    if (!projectId || !replyInput.trim()) return
 
     const text = replyInput.trim()
     setIsReplying(true)
     setStreamingContent('')
     setPhase('streaming')
 
-    setConversation((prev) =>
-      prev
-        ? {
-            ...prev,
-            messages: [
-              ...prev.messages,
-              {
-                id: `temp-${Date.now()}`,
-                role: 'user' as const,
-                content: text,
-                created_at: new Date().toISOString(),
-              },
-            ],
-          }
-        : prev,
-    )
+    setMessages((prev) => [...prev, { role: 'user', content: text }])
     setReplyInput('')
 
     const controller = new AbortController()
     abortRef.current = controller
 
-    replyConversationStream(
-      conversation.id,
+    brainstormStream(
+      projectId,
       { message: text },
       {
         onContent(chunk) {
           setStreamingContent((prev) => prev + chunk)
           scrollToBottom()
         },
-        onDone(conv) {
-          setConversation(conv)
+        onDone(result) {
+          setSuggestion(result)
           setStreamingContent('')
           setIsReplying(false)
           setPhase('conversation')
@@ -218,11 +199,15 @@ export function InspirationPage() {
   }
 
   async function handleConfirm() {
-    if (!conversation || !projectId) return
+    if (!suggestion || !projectId) return
 
     setIsConfirming(true)
     try {
-      await confirmConversation(conversation.id)
+      await updateProject(projectId, {
+        title: suggestion.title,
+        summary: suggestion.summary,
+        status: 'draft',
+      })
       await queryClient.invalidateQueries({ queryKey: queryKeys.projects })
       await queryClient.invalidateQueries({
         queryKey: queryKeys.project(projectId),
@@ -236,44 +221,39 @@ export function InspirationPage() {
   }
 
   /* -------- 初始输入阶段 -------- */
-  if (phase === 'input' && !conversation) {
+  if (phase === 'input' && !suggestion) {
     return (
       <div className="flex min-h-[70vh] flex-col items-center justify-center">
-        <motion.div
-          initial="hidden"
-          animate="visible"
-          variants={variants.staggerChildrenSlow}
-          className="w-full max-w-2xl space-y-8 text-center"
-        >
+        <div className="w-full max-w-2xl space-y-8 text-center animate-fade-in-up">
           {/* Icon decoration */}
-          <motion.div variants={variants.scaleIn} className="flex justify-center">
+          <div className="flex justify-center">
             <div className="relative">
-              <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-ink-100 to-ink-50">
-                <BookOpen className="h-8 w-8 text-ink-500" />
+              <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-muted">
+                <BookOpen className="h-8 w-8 text-foreground" />
               </div>
-              <div className="absolute -right-2 -top-2 flex h-8 w-8 items-center justify-center rounded-xl bg-ink-500 text-white shadow-glow animate-float-slow">
+              <div className="absolute -right-2 -top-2 flex h-8 w-8 items-center justify-center rounded-xl bg-[#0F172A] text-white">
                 <Sparkles className="h-4 w-4" />
               </div>
             </div>
-          </motion.div>
+          </div>
 
           {/* Title */}
-          <motion.div variants={variants.fadeInUp} className="space-y-3">
-            <h1 className="font-display text-4xl tracking-tight text-foreground">
-              你的下一个<span className="gradient-text">故事</span>
+          <div className="space-y-3">
+            <h1 className="text-4xl font-light tracking-tight text-foreground">
+              你的下一个故事
             </h1>
             <p className="mx-auto max-w-md text-sm text-muted-foreground leading-relaxed">
               输入一句灵感，AI 将帮你构思故事框架，创建项目并开始创作之旅。
             </p>
-          </motion.div>
+          </div>
 
           {/* Textarea */}
-          <motion.div variants={variants.fadeInUp} className="space-y-4 text-left">
+          <div className="space-y-4 text-left">
             <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="描述你的故事灵感..."
-              className="w-full resize-none rounded-xl border border-border bg-card px-4 py-4 text-sm leading-7 text-foreground shadow-xs transition-all duration-200 placeholder:text-stone-400 focus:border-ink-400 focus:outline-none focus:ring-2 focus:ring-ink-500/15 focus:shadow-glow"
+              className="w-full resize-none rounded-lg border border-border bg-card px-4 py-4 text-sm leading-7 text-foreground transition-all duration-150 placeholder:text-[#94A3B8] focus:border-[#0F172A] focus:outline-none"
               rows={4}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
@@ -289,7 +269,7 @@ export function InspirationPage() {
                   key={chip}
                   type="button"
                   onClick={() => setInput(chip)}
-                  className="rounded-full border border-stone-200 bg-stone-50 px-3 py-1.5 text-xs text-stone-600 transition-all hover:border-ink-200 hover:bg-ink-50 hover:text-ink-600"
+                  className="rounded-full border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-1.5 text-xs text-muted-foreground transition-all hover:border-[#0F172A] hover:bg-muted hover:text-foreground"
                 >
                   {chip}
                 </button>
@@ -301,7 +281,7 @@ export function InspirationPage() {
             )}
 
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-xs text-stone-400">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Kbd>⌘</Kbd>
                 <span>+</span>
                 <Kbd>Enter</Kbd>
@@ -315,131 +295,106 @@ export function InspirationPage() {
                 开始构思
               </Button>
             </div>
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       </div>
     )
   }
 
   /* -------- 流式 / 对话阶段 -------- */
-  const messages = conversation?.messages ?? []
-  const suggestion = conversation?.pending_suggestion
 
   return (
     <div className="mx-auto max-w-3xl pb-8">
       <StepsIndicator phase={phase} />
 
       {/* Messages */}
-      <motion.div
-        initial="hidden"
-        animate="visible"
-        variants={variants.staggerChildren}
-        className="space-y-4"
-      >
-        {messages.map(
-            (msg) =>
-              msg.role !== 'system' && (
-                <motion.div
-                  key={msg.id}
-                  variants={variants.fadeInUp}
-                  transition={transitions.springGentle}
-                  className="flex gap-3"
-                >
-                  <Avatar
-                    variant={msg.role === 'user' ? 'user' : 'ai'}
-                    size="sm"
-                  />
-                  <div
-                    className={cn(
-                      'flex-1 rounded-xl px-4 py-3',
-                      msg.role === 'user'
-                        ? 'bg-ink-50/60 border border-ink-100'
-                        : 'bg-card border border-border shadow-xs',
-                    )}
-                  >
-                    <p className="mb-1 text-[11px] font-medium text-stone-400">
-                      {msg.role === 'user' ? '你的灵感' : 'AI 助手'}
-                    </p>
-                    <div className="whitespace-pre-wrap text-sm leading-7 text-foreground">
-                      {msg.content}
-                    </div>
-                  </div>
-                </motion.div>
-              ),
-          )}
+      <div className="space-y-4">
+        {messages.map((msg, idx) => (
+          <div
+            key={idx}
+            className="flex gap-3 animate-fade-in-up"
+          >
+            <Avatar
+              variant={msg.role === 'user' ? 'user' : 'ai'}
+              size="sm"
+            />
+            <div
+              className={cn(
+                'flex-1 rounded-lg px-4 py-3',
+                msg.role === 'user'
+                  ? 'bg-muted border border-[#E2E8F0]'
+                  : 'bg-card border border-border',
+              )}
+            >
+              <p className="mb-1 text-[11px] font-medium text-muted-foreground">
+                {msg.role === 'user' ? '你的灵感' : 'AI 助手'}
+              </p>
+              <div className="whitespace-pre-wrap text-sm leading-7 text-foreground">
+                {msg.content}
+              </div>
+            </div>
+          </div>
+        ))}
 
         {/* Streaming content */}
         {phase === 'streaming' && streamingContent && (
-          <motion.div
-            variants={variants.fadeInUp}
-            transition={transitions.springGentle}
-            className="flex gap-3"
-          >
+          <div className="flex gap-3 animate-fade-in-up">
             <Avatar variant="ai" size="sm" />
-            <div className="flex-1 rounded-xl border border-border bg-card px-4 py-3 shadow-xs">
-              <p className="mb-1 text-[11px] font-medium text-stone-400">AI 助手</p>
+            <div className="flex-1 rounded-lg border border-border bg-card px-4 py-3">
+              <p className="mb-1 text-[11px] font-medium text-muted-foreground">AI 助手</p>
               <StreamingText content={streamingContent} isStreaming />
             </div>
-          </motion.div>
+          </div>
         )}
 
         {/* AI suggestion card */}
         {suggestion && phase === 'conversation' && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={transitions.springGentle}
-            className="rounded-xl border border-ink-200 gradient-surface px-5 py-5 shadow-sm"
-          >
+          <div className="rounded-lg border border-[#E2E8F0] bg-white px-5 py-5">
             <div className="mb-3 flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-ink-500" />
-              <span className="text-xs font-semibold text-ink-600">AI 建议的项目框架</span>
+              <Sparkles className="h-4 w-4 text-foreground" />
+              <span className="text-xs font-semibold text-foreground">AI 建议的项目框架</span>
             </div>
             {suggestion.title && (
               <div className="mb-3">
-                <span className="text-[11px] font-medium uppercase tracking-wider text-stone-400">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                   标题
                 </span>
-                <p className="mt-0.5 text-base font-semibold text-foreground">
+                <p className="mt-0.5 text-base font-medium text-foreground">
                   {suggestion.title}
                 </p>
               </div>
             )}
             {suggestion.summary && (
               <div>
-                <span className="text-[11px] font-medium uppercase tracking-wider text-stone-400">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                   简介
                 </span>
-                <p className="mt-0.5 text-sm leading-7 text-stone-700">
+                <p className="mt-0.5 text-sm leading-7 text-foreground">
                   {suggestion.summary}
                 </p>
               </div>
             )}
-          </motion.div>
+          </div>
         )}
 
         <div ref={messagesEndRef} />
-      </motion.div>
+      </div>
 
       {/* Error */}
       {error && (
-        <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-sm text-red-600">
+        <div className="mt-4 rounded-lg border border-red-100 bg-red-50 px-5 py-3 text-sm text-red-600">
           {error}
         </div>
       )}
 
-      {/* Reply / Confirm — sticky card with backdrop blur */}
+      {/* Reply / Confirm */}
       {phase === 'conversation' && (
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="sticky bottom-4 mt-6 rounded-xl border border-border bg-card/90 p-4 shadow-md backdrop-blur-card"
-        >
+        <div className="sticky bottom-4 mt-6 rounded-lg border border-[#E2E8F0] bg-white p-4">
           <textarea
             value={replyInput}
             onChange={(e) => setReplyInput(e.target.value)}
             placeholder="继续对话，修改构思..."
-            className="w-full resize-none rounded-lg border border-border bg-transparent px-3 py-2.5 text-sm leading-relaxed text-foreground transition-colors placeholder:text-stone-400 focus:border-ink-400 focus:outline-none focus:ring-1 focus:ring-ink-500/15"
+            className="w-full resize-none rounded-lg border border-border bg-transparent px-3 py-2.5 text-sm leading-relaxed text-foreground transition-colors placeholder:text-[#94A3B8] focus:border-[#0F172A] focus:outline-none"
             rows={2}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
@@ -464,25 +419,21 @@ export function InspirationPage() {
               确认创建
             </Button>
           </div>
-        </motion.div>
+        </div>
       )}
 
       {/* Initial loading — typing indicator */}
       {phase === 'streaming' && !streamingContent && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mt-4 flex gap-3"
-        >
+        <div className="mt-4 flex gap-3 animate-fade-in-up">
           <Avatar variant="ai" size="sm" />
-          <div className="flex-1 rounded-xl border border-border bg-card px-4 py-3 shadow-xs">
-            <p className="mb-1 text-[11px] font-medium text-stone-400">AI 助手</p>
+          <div className="flex-1 rounded-lg border border-border bg-card px-4 py-3">
+            <p className="mb-1 text-[11px] font-medium text-muted-foreground">AI 助手</p>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <TypingDots />
               <span>正在构思你的故事…</span>
             </div>
           </div>
-        </motion.div>
+        </div>
       )}
     </div>
   )

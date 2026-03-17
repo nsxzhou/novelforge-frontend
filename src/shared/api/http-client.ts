@@ -22,6 +22,8 @@ type RequestOptions = {
   body?: unknown
   headers?: Record<string, string>
   signal?: AbortSignal
+  /** Request timeout in milliseconds. Defaults to 30000 (30s). */
+  timeout?: number
 }
 
 async function parseJsonSafe(response: Response): Promise<unknown> {
@@ -53,11 +55,15 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     ...(options.headers ?? {}),
   }
 
+  const timeout = options.timeout ?? 30_000
+  const timeoutSignal = AbortSignal.timeout(timeout)
+  const signal = options.signal ? AbortSignal.any([timeoutSignal, options.signal]) : timeoutSignal
+
   const response = await fetch(`${appEnv.apiBaseUrl}${path}`, {
     method,
     headers,
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
-    signal: options.signal,
+    signal,
   })
 
   if (response.status === 204) {
