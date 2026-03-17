@@ -1,8 +1,7 @@
 import type { ButtonHTMLAttributes, PropsWithChildren, ReactNode } from 'react'
-import { motion } from 'framer-motion'
 import { cn } from '@/shared/lib/cn'
 
-type ButtonVariant = 'primary' | 'secondary' | 'tonal' | 'ghost' | 'danger'
+type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger'
 type ButtonSize = 'sm' | 'md' | 'lg'
 
 type ButtonProps = PropsWithChildren<
@@ -17,15 +16,13 @@ type ButtonProps = PropsWithChildren<
 
 const variantClassMap: Record<ButtonVariant, string> = {
   primary:
-    'bg-ink-500 text-white shadow-sm hover:bg-ink-600 hover:shadow-glow focus-visible:ring-ink-500/30',
+    'bg-[#0F172A] text-white hover:bg-[#1E293B]',
   secondary:
-    'bg-transparent border border-border text-foreground hover:bg-stone-50 hover:border-stone-300',
-  tonal:
-    'bg-ink-50 text-ink-700 hover:bg-ink-100 border border-ink-100',
+    'bg-transparent border border-border text-foreground hover:bg-muted',
   ghost:
-    'bg-transparent text-muted-foreground hover:text-foreground hover:bg-stone-100',
+    'bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted',
   danger:
-    'bg-red-500 text-white hover:bg-red-600 shadow-sm focus-visible:ring-red-500/30',
+    'bg-red-500 text-white hover:bg-red-600',
 }
 
 const sizeClassMap: Record<ButtonSize, string> = {
@@ -46,19 +43,17 @@ export function Button({
   ...props
 }: ButtonProps) {
   return (
-    <motion.button
-      whileTap={{ scale: 0.97 }}
-      transition={{ duration: 0.1 }}
+    <button
       className={cn(
         'inline-flex items-center justify-center font-medium transition-all duration-150',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F172A] focus-visible:ring-offset-2',
         'disabled:pointer-events-none disabled:opacity-50',
         variantClassMap[variant],
         sizeClassMap[size],
         className,
       )}
       disabled={disabled || loading}
-      {...(props as React.ComponentProps<typeof motion.button>)}
+      {...props}
     >
       {loading ? (
         <>
@@ -75,6 +70,6 @@ export function Button({
           {rightIcon && <span className="shrink-0">{rightIcon}</span>}
         </>
       )}
-    </motion.button>
+    </button>
   )
 }

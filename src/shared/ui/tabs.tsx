@@ -29,7 +29,7 @@ export function Tabs<K extends string>({
             className={cn(
               'relative flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors duration-150',
               isActive
-                ? 'text-ink-600'
+                ? 'text-foreground'
                 : 'text-muted-foreground hover:text-foreground',
             )}
             onClick={() => onChange(tab.key as K)}
@@ -41,8 +41,8 @@ export function Tabs<K extends string>({
                 className={cn(
                   'inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[11px] font-medium',
                   isActive
-                    ? 'bg-ink-100 text-ink-700'
-                    : 'bg-stone-100 text-stone-500',
+                    ? 'bg-[#F1F5F9] text-[#0F172A]'
+                    : 'bg-[#F1F5F9] text-[#64748B]',
                 )}
               >
                 {tab.count}
@@ -51,8 +51,8 @@ export function Tabs<K extends string>({
             {isActive && (
               <motion.div
                 layoutId="tab-indicator"
-                className="absolute bottom-0 left-0 right-0 h-[2px] bg-ink-500 rounded-full"
-                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#0F172A] rounded-full"
+                transition={{ duration: 0.15, ease: 'easeOut' }}
               />
             )}
           </button>

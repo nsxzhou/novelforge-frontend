@@ -18,11 +18,11 @@ export function SectionTitle({
     <div className={cn('mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between', className)}>
       <div className="space-y-1.5">
         {eyebrow ? (
-          <span className="font-mono text-[11px] font-medium uppercase tracking-[0.15em] text-ink-500">
+          <span className="font-mono text-[11px] font-medium uppercase tracking-[0.15em] text-muted-foreground">
             {eyebrow}
           </span>
         ) : null}
-        <h2 className="font-display text-xl tracking-tight text-foreground">{title}</h2>
+        <h2 className="text-xl font-light tracking-tight text-foreground">{title}</h2>
         {description ? (
           <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>
         ) : null}

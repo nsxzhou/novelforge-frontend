@@ -50,9 +50,9 @@ export function Tooltip({
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.12 }}
+          transition={{ duration: 0.1 }}
           className={cn(
-            'pointer-events-none absolute z-50 whitespace-nowrap rounded-md bg-stone-900 px-2.5 py-1.5 text-xs font-medium text-white shadow-lg',
+            'pointer-events-none absolute z-50 whitespace-nowrap rounded-md bg-[#0F172A] px-2.5 py-1.5 text-xs font-medium text-white',
             positionClasses[side],
           )}
         >

@@ -3,15 +3,14 @@
 @tailwind utilities;
 
 :root {
-  --color-background: #FAFAF9;
-  --color-foreground: #1C1917;
-  --color-muted: #F5F5F4;
-  --color-muted-foreground: #78716C;
-  --color-accent: #6366F1;
-  --color-accent-light: #818CF8;
-  --color-border: #E7E5E4;
+  --color-background: #FAFAFA;
+  --color-foreground: #0F172A;
+  --color-muted: #F1F5F9;
+  --color-muted-foreground: #64748B;
+  --color-accent: #0F172A;
+  --color-border: #E2E8F0;
   --color-card: #ffffff;
-  --color-ring: #6366F1;
+  --color-ring: #0F172A;
   --color-success: #059669;
   --color-warning: #D97706;
   --color-danger: #DC2626;
@@ -45,7 +44,7 @@ h4,
 h5,
 h6 {
   margin: 0;
-  font-weight: 600;
+  font-weight: 300;
   line-height: 1.15;
   letter-spacing: -0.02em;
 }
@@ -58,69 +57,13 @@ input:focus-visible,
 textarea:focus-visible,
 select:focus-visible,
 a:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
+  border-color: #0F172A;
+  outline: none;
 }
 
 ::selection {
-  background: rgba(99, 102, 241, 0.12);
-  color: #1C1917;
-}
-
-@layer components {
-  .sidebar-transition {
-    transition: width 200ms ease;
-  }
-}
-
-@layer utilities {
-  .gradient-text {
-    background: linear-gradient(135deg, #6366F1, #818CF8);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-  }
-
-  .gradient-underline {
-    position: absolute;
-    bottom: -0.25rem;
-    left: 0;
-    height: 0.75rem;
-    width: 100%;
-    border-radius: 0.125rem;
-    background: linear-gradient(
-      to right,
-      rgba(99, 102, 241, 0.15),
-      rgba(129, 140, 248, 0.1)
-    );
-  }
-
-  .dot-pattern {
-    background-image: radial-gradient(circle, #D6D3D1 1px, transparent 1px);
-    background-size: 24px 24px;
-    opacity: 0.4;
-  }
-
-  .radial-glow {
-    background: radial-gradient(
-      circle at 50% 50%,
-      rgba(99, 102, 241, 0.06),
-      transparent 70%
-    );
-  }
-
-  .gradient-surface {
-    background: linear-gradient(
-      135deg,
-      rgba(99, 102, 241, 0.04),
-      rgba(129, 140, 248, 0.02)
-    );
-  }
-
-  .backdrop-blur-card {
-    backdrop-filter: blur(12px) saturate(180%);
-    -webkit-backdrop-filter: blur(12px) saturate(180%);
-  }
+  background: rgba(15, 23, 42, 0.1);
+  color: #0F172A;
 }
 
 .ghost-text {
@@ -142,12 +85,12 @@ a:focus-visible {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #D6D3D1;
+  background: #CBD5E1;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #A8A29E;
+  background: #94A3B8;
 }
 
 @media (prefers-reduced-motion: reduce) {

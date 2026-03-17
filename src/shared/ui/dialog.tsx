@@ -60,16 +60,16 @@ export function Dialog({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.15 }}
-        className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/50"
         onClick={onClose}
       />
       <motion.div
         ref={dialogRef}
         initial={{ opacity: 0, scale: 0.95, y: 8 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+        transition={{ duration: 0.15, ease: 'easeOut' }}
         className={cn(
-          'relative w-full rounded-xl border border-border bg-card p-6 shadow-lg',
+          'relative w-full rounded-lg border border-border bg-card p-6',
           sizeClasses[size],
           className,
         )}
@@ -77,14 +77,14 @@ export function Dialog({
       >
         <button
           onClick={onClose}
-          className="absolute right-4 top-4 inline-flex h-7 w-7 items-center justify-center rounded-md text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-600"
+          className="absolute right-4 top-4 inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <X className="h-4 w-4" />
         </button>
 
         {title && (
           <div className="mb-4 pr-8">
-            <h3 className="font-display text-lg font-semibold tracking-tight text-foreground">
+            <h3 className="text-lg font-medium tracking-tight text-foreground">
               {title}
             </h3>
             {description && (

@@ -5,9 +5,9 @@ import type { ReactNode } from 'react'
 type AvatarVariant = 'ai' | 'user' | 'neutral'
 
 const variantStyles: Record<AvatarVariant, string> = {
-  ai: 'bg-gradient-to-br from-ink-500 to-ink-400 text-white',
-  user: 'bg-stone-100 text-stone-600',
-  neutral: 'bg-stone-100 text-stone-500',
+  ai: 'bg-[#0F172A] text-white',
+  user: 'bg-muted text-muted-foreground',
+  neutral: 'bg-muted text-muted-foreground',
 }
 
 const defaultIcons: Record<AvatarVariant, ReactNode> = {

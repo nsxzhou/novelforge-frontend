@@ -13,7 +13,7 @@ export function StreamingText({
     <div className={cn('whitespace-pre-wrap text-sm leading-7 text-foreground', className)}>
       {content}
       {isStreaming ? (
-        <span className="ml-0.5 inline-block h-[18px] w-[2px] animate-cursor-blink rounded-sm bg-ink-500 align-text-bottom" />
+        <span className="ml-0.5 inline-block h-[18px] w-[2px] animate-cursor-blink rounded-sm bg-[#0F172A] align-text-bottom" />
       ) : null}
     </div>
   )

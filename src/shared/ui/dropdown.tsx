@@ -44,9 +44,9 @@ export function Dropdown({
         <motion.div
           initial={{ opacity: 0, y: -4, scale: 0.97 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.12 }}
+          transition={{ duration: 0.1 }}
           className={cn(
-            'absolute top-full z-40 mt-1.5 min-w-[160px] rounded-lg border border-border bg-card py-1 shadow-lg',
+            'absolute top-full z-40 mt-1.5 min-w-[160px] rounded-lg border border-border bg-card py-1',
             align === 'end' ? 'right-0' : 'left-0',
           )}
         >
@@ -78,11 +78,11 @@ export function DropdownItem({
       className={cn(
         'flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors',
         'disabled:pointer-events-none disabled:opacity-50',
-        variant === 'default' && 'text-foreground hover:bg-stone-50',
+        variant === 'default' && 'text-foreground hover:bg-muted',
         variant === 'danger' && 'text-red-600 hover:bg-red-50',
       )}
     >
-      {icon && <span className="shrink-0 text-stone-400">{icon}</span>}
+      {icon && <span className="shrink-0 text-muted-foreground">{icon}</span>}
       {children}
     </button>
   )
