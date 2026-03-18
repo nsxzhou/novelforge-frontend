@@ -1,6 +1,6 @@
 # InkMuse Frontend
 
-基于 Vite + React 18 + TypeScript + Tailwind CSS 的 AI 小说创作前端。
+基于 Vite + React 18 + TypeScript + Tailwind CSS 的单用户本地 AI 小说创作前端。
 
 ## 技术栈
 
@@ -14,7 +14,7 @@
 | 表单 | React Hook Form 7、Zod 3 |
 | 动画 | Framer Motion 12（仅 tab 指示器/dialog 入场） |
 | 图标 | Lucide React |
-| 测试 | Vitest、Playwright |
+| 测试 | Vitest（当前覆盖纯逻辑模块）+ `build` / `lint`；Playwright 依赖与脚本仍为预留 |
 
 ## 快速启动
 
@@ -32,8 +32,8 @@ npm run dev
 | `npm run build` | 生产构建（tsc + vite） |
 | `npm run preview` | 预览构建产物 |
 | `npm run lint` | ESLint 检查（zero-warning 策略） |
-| `npm run test` | Vitest 单测 |
-| `npm run test:e2e` | Playwright E2E |
+| `npm run test` | 运行当前已提交的 Vitest 单测（以纯逻辑模块为主） |
+| `npm run test:e2e` | 预留 Playwright 命令；当前仓库未提交测试配置 |
 
 ## 路由
 
@@ -41,7 +41,7 @@ npm run dev
 |------|------|------|
 | `/` | HomePage | 项目仪表盘：统计卡片 + 三列看板（草稿/进行中/已归档） |
 | `/new-project` | InspirationPage | 灵感对话：输入灵感 → AI 构思框架 → 确认创建项目 |
-| `/projects/:id` | ProjectWorkbenchPage | 项目工作台：概览 / 设定工坊 / 对话微调 / 章节 / Prompt 五个 Tab |
+| `/projects/:id` | ProjectWorkbenchPage | 项目工作台：概览 / 设定工坊 / 章节 / 记忆层 / Prompts 五个 Tab |
 | `/settings` | SettingsPage | 全局设置：LLM Provider 管理 |
 | `*` | NotFoundPage | 404 |
 
@@ -59,7 +59,7 @@ src/
 │   ├── inspiration/        #   灵感对话创建项目
 │   ├── assets/             #   资产管理（CRUD + AI 生成 + 结构化表单）
 │   ├── chapters/           #   章节编辑（Tiptap 编辑器 + AI 续写/改写）
-│   ├── conversations/      #   对话微调（SSE 流式 + 确认写回）
+│   ├── memory/             #   记忆层（角色状态 + 时间线事件）
 │   ├── prompts/            #   Prompt 模板管理
 │   ├── projects/           #   项目编辑面板
 │   └── llm-providers/      #   LLM Provider 配置
@@ -94,17 +94,17 @@ src/
 ## 功能清单
 
 - **仪表盘**：项目总数/章节总数/总字数统计，按状态分组的看板视图
-- **灵感对话**：一句话灵感 → AI 流式构思 → 多轮对话修改 → 确认创建项目
-- **设定工坊**：资产 CRUD、AI 流式生成、按类型过滤，角色 DNA 结构化表单、世界观分区表单、结构化 ↔ 原始文本切换
-- **对话微调**：项目/资产级对话，SSE 流式回复，确认建议自动写回目标实体
-- **章节编辑**：Tiptap 富文本编辑器（排版/撤销/重做）、AI Ghost Text 续写建议、选中文本触发改写、草稿手动保存、当前稿确认/取消确认
+- **灵感对话**：一句话灵感 → AI 流式构思 → 多轮对话修改（完整对话历史保留） → 确认创建项目
+- **设定工坊**：资产 CRUD、AI 流式生成（生成后自动打开编辑面板供预览修改）、按类型过滤，角色 DNA 结构化表单、世界观分区表单、结构化 ↔ 原始文本切换
+- **章节编辑**：Tiptap 富文本编辑器（排版/撤销/重做）、AI Ghost Text 续写建议、选中文本触发改写、草稿手动保存、当前稿确认/取消确认（有未保存编辑时禁用确认按钮，防止确认旧内容）
 - **章节生成**：AI 生成/续写/局部改写，流式输出
-- **Prompt 管理**：查看/覆盖/重置项目级 Prompt 模板
+- **记忆层**：角色状态图谱、章节级状态快照、时间线事件浏览与手动补录
+- **Prompt 管理**：查看/覆盖/重置项目级 Prompt 模板（后端对变量名做白名单校验，拒绝引用不存在的变量）
 - **LLM 配置**：Provider 增删改查、启用/禁用切换
 - **导出**：项目导出为 Markdown 或纯文本文件下载
 - **响应式**：桌面顶部导航 / 移动端 hamburger menu
 
-## 产品原型 vs 实际实现
+## Roadmap / 原型差异
 
 `ui-designs/` 目录包含产品原型（HTML），以下为尚未实现的原型页面：
 
@@ -113,7 +113,9 @@ src/
 | `02-writing-workbench.html` | 沉浸式写作工作台 | 当前章节编辑嵌入在项目工作台 Tab 内，无独立全屏路由 |
 | `03-split-editor.html` | AI 分屏对比编辑器 | 当前改写以 popover 形式呈现，无 diff 高亮对比 |
 
-## 后续方向
+以下内容为未来规划，不代表当前仓库已实现。
+
+## Roadmap
 
 ### 近期：编辑器体验增强
 
