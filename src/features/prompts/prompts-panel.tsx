@@ -32,7 +32,7 @@ const capabilityLabels: Record<string, string> = {
   chapter_generation: '章节生成',
   chapter_continuation: '章节续写',
   chapter_rewrite: '章节改写',
-  project_refinement: '灵感构思',
+  project_guided_candidates: '组合式创建候选',
 }
 
 function getCapabilityLabel(capability: string): string {

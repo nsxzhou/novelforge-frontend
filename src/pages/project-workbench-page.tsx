@@ -1,5 +1,5 @@
-﻿import { useMemo, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+﻿import { useEffect, useMemo, useState } from 'react'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Download, PencilLine, Trash2, X, Check,
@@ -42,6 +42,7 @@ function getProjectStatusVariant(status: string) {
 export function ProjectWorkbenchPage() {
   const { projectId = '' } = useParams<{ projectId: string }>()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const [activeTab, setActiveTab] = useState<TabKey>('overview')
@@ -144,6 +145,24 @@ export function ProjectWorkbenchPage() {
   function openChapterWorkbench(chapterId: string) {
     setSelectedChapterId(chapterId)
     setActiveTab('chapters')
+  }
+
+  useEffect(() => {
+    const tab = searchParams.get('tab')
+    if (tab === 'overview' || tab === 'assets' || tab === 'chapters' || tab === 'memory' || tab === 'prompts') {
+      setActiveTab(tab)
+    }
+  }, [searchParams])
+
+  function handleTabChange(tab: TabKey) {
+    setActiveTab(tab)
+    const next = new URLSearchParams(searchParams)
+    if (tab === 'overview') {
+      next.delete('tab')
+    } else {
+      next.set('tab', tab)
+    }
+    setSearchParams(next, { replace: true })
   }
 
   const content = useMemo(() => {
@@ -329,7 +348,7 @@ export function ProjectWorkbenchPage() {
       </div>
 
       {/* Tabs */}
-      <Tabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab} />
+      <Tabs tabs={tabs} activeKey={activeTab} onChange={handleTabChange} />
 
       {/* Content */}
       <div>

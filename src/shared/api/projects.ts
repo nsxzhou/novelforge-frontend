@@ -1,13 +1,30 @@
 ﻿import { request } from '@/shared/api/http-client'
-import { streamRequest, type SSECallbacks } from '@/shared/api/sse-client'
-import type { Project, ProjectStatus } from '@/shared/api/types'
+import type { GuidedProjectCandidate, Project, ProjectStatus, Asset } from '@/shared/api/types'
 
 type ProjectListResponse = { projects: Project[] }
+type GuidedCandidatesResponse = { candidates: GuidedProjectCandidate[] }
+type GuidedCreateResponse = { project: Project; created_assets: Asset[] }
 
 export type UpsertProjectInput = {
   title: string
   summary: string
   status: ProjectStatus
+}
+
+export type GuidedProjectInput = {
+  genre: string
+  setting: string
+  protagonist_archetype: string
+  core_conflict: string
+  tone: string
+  custom_note?: string
+}
+
+export type GuidedCreateInput = {
+  candidate: GuidedProjectCandidate
+  persist_outline: boolean
+  persist_worldbuilding: boolean
+  persist_protagonist: boolean
 }
 
 export async function listProjects(params: {
@@ -49,16 +66,17 @@ export function deleteProject(projectId: string): Promise<void> {
   })
 }
 
-export type BrainstormSuggestion = {
-  title: string
-  summary: string
+export async function getGuidedProjectCandidates(input: GuidedProjectInput): Promise<GuidedProjectCandidate[]> {
+  const result = await request<GuidedCandidatesResponse>('/projects/guided/candidates', {
+    method: 'POST',
+    body: input,
+  })
+  return result.candidates
 }
 
-export function brainstormStream(
-  projectId: string,
-  input: { message: string },
-  callbacks: SSECallbacks<BrainstormSuggestion>,
-  signal?: AbortSignal,
-): void {
-  streamRequest(`/projects/${projectId}/brainstorm/stream`, input, callbacks, signal)
+export function createGuidedProject(input: GuidedCreateInput): Promise<GuidedCreateResponse> {
+  return request<GuidedCreateResponse>('/projects/guided/create', {
+    method: 'POST',
+    body: input,
+  })
 }
