@@ -1,3 +1,4 @@
+import { getClientUserId } from '@/shared/api/client-identity'
 import { appEnv } from '@/shared/config/env'
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE'
@@ -53,6 +54,10 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers ?? {}),
+  }
+
+  if (method !== 'GET' && !headers['X-User-ID']) {
+    headers['X-User-ID'] = getClientUserId()
   }
 
   const timeout = options.timeout ?? 30_000

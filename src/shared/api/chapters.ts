@@ -2,8 +2,6 @@ import { request } from '@/shared/api/http-client'
 import { streamRequest, type SSECallbacks } from '@/shared/api/sse-client'
 import type { Chapter, GenerationRecord } from '@/shared/api/types'
 
-const ANONYMOUS_USER_ID = '00000000-0000-0000-0000-000000000000'
-
 type ChapterListResponse = { chapters: Chapter[] }
 export type ChapterGenerationResponse = { chapter: Chapter; generation_record: GenerationRecord }
 
@@ -63,9 +61,6 @@ export function rewriteChapter(
 export function confirmChapter(chapterId: string): Promise<Chapter> {
   return request<Chapter>(`/chapters/${chapterId}/confirm`, {
     method: 'POST',
-    headers: {
-      'X-User-ID': ANONYMOUS_USER_ID,
-    },
   })
 }
 

@@ -1,3 +1,4 @@
+import { getClientUserId } from '@/shared/api/client-identity'
 import { appEnv } from '@/shared/config/env'
 
 export type SSECallbacks<T> = {
@@ -16,7 +17,10 @@ export function streamRequest<T>(
 
   fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-User-ID': getClientUserId(),
+    },
     body: JSON.stringify(body),
     signal,
   })
