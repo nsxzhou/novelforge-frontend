@@ -104,6 +104,13 @@ export type LLMProvider = {
   enabled: boolean
 }
 
+export type LLMProviderTestResult = {
+  provider_id: string
+  success: boolean
+  latency_ms: number
+  message: string
+}
+
 export type PromptTemplate = {
   capability: string
   system: string

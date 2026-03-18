@@ -3,15 +3,16 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, FilePenLine, Power, Server } from 'lucide-react'
+import { CheckCircle2, FilePenLine, LoaderCircle, Plus, Power, Server, Trash2, TriangleAlert } from 'lucide-react'
 import {
   addProvider,
   deleteProvider,
   listProviders,
+  testProvider,
   updateProvider,
 } from '@/shared/api/llm-providers'
 import { queryKeys } from '@/shared/api/queries'
-import type { LLMProvider } from '@/shared/api/types'
+import type { LLMProvider, LLMProviderTestResult } from '@/shared/api/types'
 import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
 import { ErrorState, LoadingState } from '@/shared/ui/feedback'
@@ -33,6 +34,11 @@ const providerSchema = z.object({
 })
 
 type ProviderFormValue = z.infer<typeof providerSchema>
+type ProviderTestState = {
+  status: 'success' | 'error'
+  latencyMs?: number
+  message: string
+}
 
 type EditorMode =
   | { type: 'closed' }
@@ -60,6 +66,8 @@ export function LLMProvidersPanel() {
   const [editorMode, setEditorMode] = useState<EditorMode>({ type: 'closed' })
   const [deleteTarget, setDeleteTarget] = useState<LLMProvider | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [testingProviderId, setTestingProviderId] = useState<string | null>(null)
+  const [testResults, setTestResults] = useState<Record<string, ProviderTestState>>({})
 
   const providersQuery = useQuery({
     queryKey: queryKeys.llmProviders,
@@ -120,6 +128,43 @@ export function LLMProvidersPanel() {
     onError: (err) => setError(getErrorMessage(err)),
   })
 
+  const testMutation = useMutation({
+    mutationFn: (id: string) => testProvider(id),
+    onMutate: (id) => {
+      setTestingProviderId(id)
+      setTestResults((prev) => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+      setError(null)
+    },
+    onSuccess: (result: LLMProviderTestResult) => {
+      setTestingProviderId(null)
+      setTestResults((prev) => ({
+        ...prev,
+        [result.provider_id]: {
+          status: 'success',
+          latencyMs: result.latency_ms,
+          message: result.message,
+        },
+      }))
+      toast(result.message)
+    },
+    onError: (err, providerId) => {
+      const message = getErrorMessage(err)
+      setTestingProviderId(null)
+      setTestResults((prev) => ({
+        ...prev,
+        [providerId]: {
+          status: 'error',
+          message,
+        },
+      }))
+      toast(message, 'error')
+    },
+  })
+
   const isSubmitting = addMutation.isPending || updateMutation.isPending
 
   function handleSubmit(value: ProviderFormValue) {
@@ -160,6 +205,28 @@ export function LLMProvidersPanel() {
     setEditorMode({ type: 'create' })
     form.reset(defaultValues)
     setError(null)
+  }
+
+  function renderProviderTestResult(providerId: string, enabled: boolean) {
+    const result = testResults[providerId]
+    if (!result) return null
+
+    if (result.status === 'error') {
+      return <ErrorState text={result.message} className="mt-3 flex w-full" />
+    }
+
+    return (
+      <div className="mt-3 flex w-full items-start gap-2.5 rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-700">
+        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+        <div className="space-y-1">
+          <p>{result.message}</p>
+          <p className="text-xs text-emerald-700/80">
+            耗时 {result.latencyMs ?? 0} ms
+            {!enabled ? '，当前 Provider 已禁用，测试不会影响启用状态' : ''}
+          </p>
+        </div>
+      </div>
+    )
   }
 
   const showForm = editorMode.type !== 'closed'
@@ -294,8 +361,24 @@ export function LLMProvidersPanel() {
                   <span>Priority: {provider.priority}</span>
                   <span>Timeout: {provider.timeout_seconds}s</span>
                 </div>
+                {renderProviderTestResult(provider.id, provider.enabled)}
               </div>
               <div className="flex shrink-0 gap-1.5">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => testMutation.mutate(provider.id)}
+                  loading={testingProviderId === provider.id}
+                  leftIcon={
+                    testingProviderId === provider.id ? (
+                      <LoaderCircle className="h-3.5 w-3.5" />
+                    ) : (
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                    )
+                  }
+                >
+                  测试
+                </Button>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -323,6 +406,12 @@ export function LLMProvidersPanel() {
                 </Button>
               </div>
             </div>
+            {!provider.enabled && !testResults[provider.id] ? (
+              <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-100 bg-amber-50 px-4 py-2 text-xs text-amber-700">
+                <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                当前 Provider 已禁用，但仍可单独执行测试。
+              </div>
+            ) : null}
           </Card>
         ))}
       </div>

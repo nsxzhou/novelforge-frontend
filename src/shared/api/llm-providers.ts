@@ -1,5 +1,5 @@
 import { request } from '@/shared/api/http-client'
-import type { LLMProvider } from '@/shared/api/types'
+import type { LLMProvider, LLMProviderTestResult } from '@/shared/api/types'
 
 type ProviderListResponse = { providers: LLMProvider[] }
 
@@ -36,5 +36,11 @@ export function updateProvider(id: string, input: UpdateProviderInput): Promise<
 export function deleteProvider(id: string): Promise<void> {
   return request<void>(`/llm/providers/${id}`, {
     method: 'DELETE',
+  })
+}
+
+export function testProvider(id: string): Promise<LLMProviderTestResult> {
+  return request<LLMProviderTestResult>(`/llm/providers/${id}/test`, {
+    method: 'POST',
   })
 }
