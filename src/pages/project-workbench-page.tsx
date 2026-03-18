@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Download, PencilLine, Trash2, X, Check,
-  LayoutGrid, Boxes, BookOpen, Wrench,
+  LayoutGrid, Boxes, BookOpen, Wrench, GitBranch,
   FileText, Calendar, ChevronRight,
 } from 'lucide-react'
 import { getProject, updateProject, deleteProject } from '@/shared/api/projects'
@@ -23,11 +23,12 @@ import { useToast } from '@/shared/ui/toast'
 import { cn } from '@/shared/lib/cn'
 import { AssetsPanel } from '@/features/assets/assets-panel'
 import { ChaptersPanel } from '@/features/chapters/chapters-panel'
+import { MemoryPanel } from '@/features/memory/memory-panel'
 import { PromptsPanel } from '@/features/prompts/prompts-panel'
 import { getErrorMessage } from '@/shared/lib/error-message'
 import { getProjectStatusLabel, formatDate } from '@/shared/lib/format'
 
-type TabKey = 'overview' | 'assets' | 'chapters' | 'prompts'
+type TabKey = 'overview' | 'assets' | 'chapters' | 'memory' | 'prompts'
 
 function getProjectStatusVariant(status: string) {
   switch (status) {
@@ -44,6 +45,7 @@ export function ProjectWorkbenchPage() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const [activeTab, setActiveTab] = useState<TabKey>('overview')
+  const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null)
   const [exportLoading, setExportLoading] = useState(false)
 
   // Edit state
@@ -135,8 +137,14 @@ export function ProjectWorkbenchPage() {
     { key: 'overview', label: '概览', icon: <LayoutGrid className="h-4 w-4" /> },
     { key: 'assets', label: '设定工坊', icon: <Boxes className="h-4 w-4" />, count: assetsQuery.data?.length },
     { key: 'chapters', label: '章节', icon: <BookOpen className="h-4 w-4" />, count: chaptersQuery.data?.length },
+    { key: 'memory', label: '记忆层', icon: <GitBranch className="h-4 w-4" /> },
     { key: 'prompts', label: 'Prompts', icon: <Wrench className="h-4 w-4" /> },
   ]
+
+  function openChapterWorkbench(chapterId: string) {
+    setSelectedChapterId(chapterId)
+    setActiveTab('chapters')
+  }
 
   const content = useMemo(() => {
     if (!projectQuery.data) return null
@@ -241,7 +249,23 @@ export function ProjectWorkbenchPage() {
       case 'assets':
         return <AssetsPanel projectId={project.id} />
       case 'chapters':
-        return <ChaptersPanel projectId={project.id} />
+        return (
+          <ChaptersPanel
+            projectId={project.id}
+            selectedChapterId={selectedChapterId}
+            onSelectedChapterChange={setSelectedChapterId}
+          />
+        )
+      case 'memory':
+        return (
+          <MemoryPanel
+            projectId={project.id}
+            chapters={chapters}
+            assets={assets}
+            activeChapterId={selectedChapterId}
+            onOpenChapter={openChapterWorkbench}
+          />
+        )
       case 'prompts':
         return <PromptsPanel projectId={project.id} />
       default:
@@ -251,7 +275,7 @@ export function ProjectWorkbenchPage() {
   }, [
     activeTab, assetsQuery.data, chaptersQuery.data,
     projectQuery.data, isEditing, editTitle, editSummary, editStatus,
-    updateMutation.isPending, updateMutation.error, showDeleteDialog,
+    updateMutation.isPending, updateMutation.error, selectedChapterId, showDeleteDialog,
   ])
 
   return (

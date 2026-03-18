@@ -102,6 +102,7 @@ export function InspirationPage() {
 
   const abortRef = useRef<AbortController | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const streamedContentRef = useRef('')
 
   const scrollToBottom = () => {
     setTimeout(() => {
@@ -115,6 +116,7 @@ export function InspirationPage() {
 
     setPhase('streaming')
     setStreamingContent('')
+    streamedContentRef.current = ''
     setError(null)
     setMessages([{ role: 'user', content: text }])
 
@@ -134,14 +136,17 @@ export function InspirationPage() {
         { message: text },
         {
           onContent(chunk) {
+            streamedContentRef.current += chunk
             setStreamingContent((prev) => prev + chunk)
             scrollToBottom()
           },
           onDone(result) {
+            const aiContent = streamedContentRef.current
             setSuggestion(result)
             setStreamingContent('')
+            streamedContentRef.current = ''
             setPhase('conversation')
-            setMessages((prev) => [...prev, { role: 'assistant', content: streamingContent }])
+            setMessages((prev) => [...prev, { role: 'assistant', content: aiContent }])
             scrollToBottom()
           },
           onError(err) {
@@ -165,6 +170,7 @@ export function InspirationPage() {
     const text = replyInput.trim()
     setIsReplying(true)
     setStreamingContent('')
+    streamedContentRef.current = ''
     setPhase('streaming')
 
     setMessages((prev) => [...prev, { role: 'user', content: text }])
@@ -178,14 +184,18 @@ export function InspirationPage() {
       { message: text },
       {
         onContent(chunk) {
+          streamedContentRef.current += chunk
           setStreamingContent((prev) => prev + chunk)
           scrollToBottom()
         },
         onDone(result) {
+          const aiContent = streamedContentRef.current
           setSuggestion(result)
           setStreamingContent('')
+          streamedContentRef.current = ''
           setIsReplying(false)
           setPhase('conversation')
+          setMessages((prev) => [...prev, { role: 'assistant', content: aiContent }])
           scrollToBottom()
         },
         onError(err) {

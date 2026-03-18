@@ -80,6 +80,34 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
   const generateForm = useForm<GenerateFormValue>({ resolver: zodResolver(generateSchema), defaultValues: defaultGenerateValue })
   const watchedType = assetForm.watch('type')
   const supportsStructured = watchedType in ASSET_TYPE_TO_SCHEMA
+  const isAssetDirty = assetForm.formState.isDirty
+
+  function resetAssetEditor(nextMode: AssetEditorMode) {
+    setEditorMode(nextMode)
+    if (nextMode.type === 'edit') {
+      assetForm.reset({
+        type: nextMode.asset.type,
+        title: nextMode.asset.title,
+        content: nextMode.asset.content,
+      })
+      return
+    }
+
+    assetForm.reset(defaultAssetValue)
+  }
+
+  function confirmDiscardDraft() {
+    if (!isAssetDirty) return true
+    return window.confirm('当前资产编辑尚未保存，确认放弃这些更改并切换目标吗？')
+  }
+
+  function openAssetEditor(nextMode: AssetEditorMode) {
+    if (!confirmDiscardDraft()) return
+
+    resetAssetEditor(nextMode)
+    setShowGenerate(false)
+    setError(null)
+  }
 
   const refreshAssets = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: queryKeys.assets(projectId, filterType) })
@@ -90,8 +118,7 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
     mutationFn: (input: AssetFormValue & { content_schema?: string }) => createAsset(projectId, input),
     onSuccess: async () => {
       await refreshAssets()
-      assetForm.reset(defaultAssetValue)
-      setEditorMode({ type: 'closed' })
+      resetAssetEditor({ type: 'closed' })
       setError(null)
       toast('资产已创建')
     },
@@ -102,8 +129,7 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
     mutationFn: ({ assetId, input }: { assetId: string; input: AssetFormValue & { content_schema?: string } }) => updateAsset(assetId, input),
     onSuccess: async () => {
       await refreshAssets()
-      assetForm.reset(defaultAssetValue)
-      setEditorMode({ type: 'closed' })
+      resetAssetEditor({ type: 'closed' })
       setError(null)
       toast('资产已更新')
     },
@@ -128,11 +154,13 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
       onContent: (chunk: string) => setStreamingContent((prev) => prev + chunk),
       onDone: async (result: AssetGenerationResponse) => {
         setIsStreaming(false)
-        setGenerationResult(`生成成功：${result.asset.title}`)
+        setGenerationResult(`生成成功：${result.asset.title}，已打开编辑面板供预览`)
         generateForm.reset(defaultGenerateValue)
         setShowGenerate(false)
         await refreshAssets()
-        toast('AI 资产已生成')
+        // 自动打开编辑面板，让用户预览和修改 AI 生成的资产
+        resetAssetEditor({ type: 'edit', asset: result.asset })
+        toast('AI 资产已生成，请预览确认')
       },
       onError: (errMsg: string) => { setIsStreaming(false); setError(errMsg) },
     }, abortRef.current.signal)
@@ -156,11 +184,14 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
   }
 
   function handleEdit(asset: Asset) {
-    setEditorMode({ type: 'edit', asset })
-    assetForm.reset({ type: asset.type, title: asset.title, content: asset.content })
+    openAssetEditor({ type: 'edit', asset })
   }
 
-  function handleCancelEdit() { setEditorMode({ type: 'closed' }); assetForm.reset(defaultAssetValue); setError(null) }
+  function handleCancelEdit() {
+    if (!confirmDiscardDraft()) return
+    resetAssetEditor({ type: 'closed' })
+    setError(null)
+  }
 
   const showForm = editorMode.type !== 'closed'
 
@@ -192,14 +223,20 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => { setShowGenerate((v) => !v); if (showForm) handleCancelEdit() }}
+            onClick={() => {
+              if (!showGenerate && showForm && !confirmDiscardDraft()) return
+              if (!showGenerate) {
+                resetAssetEditor({ type: 'closed' })
+              }
+              setShowGenerate((v) => !v)
+            }}
             leftIcon={<Bot className="h-3.5 w-3.5" />}
           >
             AI 生成
           </Button>
           <Button
             size="sm"
-            onClick={() => { setEditorMode({ type: 'create' }); assetForm.reset(defaultAssetValue); setShowGenerate(false) }}
+            onClick={() => openAssetEditor({ type: 'create' })}
             leftIcon={<Plus className="h-3.5 w-3.5" />}
           >
             手动创建
@@ -266,7 +303,7 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
                 <StructuredAssetEditor
                   assetType={watchedType}
                   content={assetForm.getValues('content')}
-                  onChange={(val) => assetForm.setValue('content', val, { shouldValidate: true })}
+                  onChange={(val) => assetForm.setValue('content', val, { shouldDirty: true, shouldValidate: true })}
                 />
               ) : (
                 <Textarea rows={6} {...assetForm.register('content')} placeholder="资产正文内容" />
@@ -294,7 +331,7 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
           title="暂无设定资产"
           description="创建世界观、角色或大纲来丰富你的故事"
           action={
-            <Button size="sm" onClick={() => { setEditorMode({ type: 'create' }); assetForm.reset(defaultAssetValue) }} leftIcon={<Plus className="h-3.5 w-3.5" />}>
+            <Button size="sm" onClick={() => openAssetEditor({ type: 'create' })} leftIcon={<Plus className="h-3.5 w-3.5" />}>
               创建资产
             </Button>
           }

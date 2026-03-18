@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -59,10 +59,20 @@ type RewriteFormValue = z.infer<typeof rewriteSchema>
 
 type AITab = 'continue' | 'rewrite'
 
-export function ChaptersPanel({ projectId }: { projectId: string }) {
+type ChaptersPanelProps = {
+  projectId: string
+  selectedChapterId?: string | null
+  onSelectedChapterChange?: (chapterId: string | null) => void
+}
+
+export function ChaptersPanel({
+  projectId,
+  selectedChapterId: controlledSelectedChapterId,
+  onSelectedChapterChange,
+}: ChaptersPanelProps) {
   const queryClient = useQueryClient()
   const { toast } = useToast()
-  const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null)
+  const [internalSelectedChapterId, setInternalSelectedChapterId] = useState<string | null>(null)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [operationResult, setOperationResult] = useState<string | null>(null)
@@ -74,6 +84,15 @@ export function ChaptersPanel({ projectId }: { projectId: string }) {
   const [editedContent, setEditedContent] = useState<string | null>(null)
   const [selection, setSelection] = useState<TextSelection | null>(null)
   const [showRewritePopover, setShowRewritePopover] = useState(false)
+
+  const selectedChapterId = controlledSelectedChapterId ?? internalSelectedChapterId
+
+  const setSelectedChapterId = useCallback((chapterId: string | null) => {
+    onSelectedChapterChange?.(chapterId)
+    if (controlledSelectedChapterId === undefined) {
+      setInternalSelectedChapterId(chapterId)
+    }
+  }, [controlledSelectedChapterId, onSelectedChapterChange])
 
   const [ghostTextOn, setGhostTextOn] = useState(
     () => localStorage.getItem('ghostTextEnabled') !== 'false',
@@ -131,6 +150,7 @@ export function ChaptersPanel({ projectId }: { projectId: string }) {
     (onDoneExtra?: (result: ChapterGenerationResponse) => void) => ({
       onContent: (chunk: string) => setStreamingContent((prev) => prev + chunk),
       onDone: async (result: ChapterGenerationResponse) => {
+        abortRef.current = null
         setIsStreaming(false)
         setSelectedChapterId(result.chapter.id)
         setEditedContent(null)
@@ -139,12 +159,20 @@ export function ChaptersPanel({ projectId }: { projectId: string }) {
         await refreshChapters()
         toast('操作完成')
       },
-      onError: (errMsg: string) => { setIsStreaming(false); setError(errMsg) },
+      onError: (errMsg: string) => {
+        abortRef.current = null
+        setIsStreaming(false)
+        setError(errMsg)
+      },
     }),
-    [refreshChapters, toast],
+    [refreshChapters, setSelectedChapterId, toast],
   )
 
-  function cancelStream() { abortRef.current?.abort(); setIsStreaming(false) }
+  function cancelStream() {
+    abortRef.current?.abort()
+    abortRef.current = null
+    setIsStreaming(false)
+  }
 
   function handleCreateSubmit(value: CreateFormValue) {
     startStream()
@@ -232,6 +260,30 @@ export function ChaptersPanel({ projectId }: { projectId: string }) {
     setOperationResult(`改写完成，耗时 ${result.generation_record.duration_millis} ms`)
     refreshChapters()
   }
+
+  useEffect(() => {
+    if (!isStreaming) return
+
+    abortRef.current?.abort()
+    abortRef.current = null
+    setIsStreaming(false)
+    setStreamingContent('')
+    setOperationResult(null)
+    setError(null)
+  }, [isStreaming, selectedChapterId])
+
+  useEffect(() => {
+    setEditedContent(null)
+    setSelection(null)
+    setShowRewritePopover(false)
+  }, [selectedChapterId])
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort()
+      abortRef.current = null
+    }
+  }, [])
 
   return (
     <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
@@ -348,6 +400,8 @@ export function ChaptersPanel({ projectId }: { projectId: string }) {
                       variant="secondary"
                       size="sm"
                       loading={confirmMutation.isPending}
+                      disabled={hasUnsavedChanges}
+                      title={hasUnsavedChanges ? '请先保存编辑内容' : undefined}
                       onClick={() => confirmMutation.mutate(selectedChapter.id)}
                       leftIcon={<CheckCircle2 className="h-3.5 w-3.5" />}
                     >
