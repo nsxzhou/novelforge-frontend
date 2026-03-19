@@ -1,6 +1,6 @@
-import { useCallback } from 'react'
+import { Suspense, useCallback, Component, type ReactNode } from 'react'
 import { GraphCanvas, lightTheme } from 'reagraph'
-import { Search, RotateCcw } from 'lucide-react'
+import { Search, RotateCcw, AlertTriangle } from 'lucide-react'
 import { Input } from '@/shared/ui/input'
 import { Button } from '@/shared/ui/button'
 import { Badge } from '@/shared/ui/badge'
@@ -13,6 +13,54 @@ interface RelationshipGraphProps {
   scopedStates: CharacterState[]
   knownCharacterNames: Set<string>
   isLoading?: boolean
+}
+
+// 错误边界组件
+class GraphErrorBoundary extends Component<
+  { children: ReactNode; fallback: ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: ReactNode; fallback: ReactNode }) {
+    super(props)
+    this.state = { hasError: false }
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true }
+  }
+
+  componentDidCatch(error: Error) {
+    console.error('Graph rendering error:', error)
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback
+    }
+    return this.props.children
+  }
+}
+
+// WebGL 降级显示组件
+function GraphFallback() {
+  return (
+    <div className="flex h-[450px] flex-col items-center justify-center rounded-xl border border-border bg-[#FAFAFA]">
+      <AlertTriangle className="h-8 w-8 text-amber-500" />
+      <p className="mt-3 text-sm font-medium text-foreground">无法渲染关系图</p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        当前环境不支持 WebGL，请使用支持 WebGL 的浏览器
+      </p>
+    </div>
+  )
+}
+
+// 图表加载中组件
+function GraphLoading() {
+  return (
+    <div className="flex h-[450px] items-center justify-center rounded-xl border border-border bg-[#FAFAFA]">
+      <p className="text-sm text-muted-foreground">加载图表中...</p>
+    </div>
+  )
 }
 
 export function RelationshipGraph({
@@ -129,49 +177,53 @@ export function RelationshipGraph({
 
       {/* 图表容器 */}
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
-        <div className="h-[450px] overflow-hidden rounded-xl border border-border bg-[#FAFAFA]">
-          <GraphCanvas
-            nodes={nodes}
-            edges={edges}
-            theme={{
-              ...lightTheme,
-              node: {
-                ...lightTheme.node,
-                fill: '#FFFFFF',
-                activeFill: '#F1F5F9',
-                label: {
-                  ...lightTheme.node.label,
-                  color: '#0F172A',
-                  activeColor: '#0F172A',
-                },
-              },
-              edge: {
-                ...lightTheme.edge,
-                fill: '#94A3B8',
-                activeFill: '#0F172A',
-                label: {
-                  ...lightTheme.edge.label,
-                  color: '#475569',
-                  activeColor: '#0F172A',
-                  fontSize: 11,
-                },
-              },
-            }}
-            layoutType="forceDirected2d"
-            layoutOverrides={{
-              nodeStrength: -300,
-              linkDistance: 150,
-            }}
-            selections={selectedNode ? [selectedNode.id] : []}
-            actives={highlightEdges.length > 0 ? [selectedNode?.id || ''] : []}
-            onNodeClick={onNodeClick}
-            draggable
-            animated
-            labelType="all"
-            minNodeSize={35}
-            maxNodeSize={50}
-          />
-        </div>
+        <GraphErrorBoundary fallback={<GraphFallback />}>
+          <Suspense fallback={<GraphLoading />}>
+            <div className="h-[450px] overflow-hidden rounded-xl border border-border bg-[#FAFAFA]">
+              <GraphCanvas
+                nodes={nodes}
+                edges={edges}
+                theme={{
+                  ...lightTheme,
+                  node: {
+                    ...lightTheme.node,
+                    fill: '#FFFFFF',
+                    activeFill: '#F1F5F9',
+                    label: {
+                      ...lightTheme.node.label,
+                      color: '#0F172A',
+                      activeColor: '#0F172A',
+                    },
+                  },
+                  edge: {
+                    ...lightTheme.edge,
+                    fill: '#94A3B8',
+                    activeFill: '#0F172A',
+                    label: {
+                      ...lightTheme.edge.label,
+                      color: '#475569',
+                      activeColor: '#0F172A',
+                      fontSize: 11,
+                    },
+                  },
+                }}
+                layoutType="forceDirected2d"
+                layoutOverrides={{
+                  nodeStrength: -300,
+                  linkDistance: 150,
+                }}
+                selections={selectedNode ? [selectedNode.id] : []}
+                actives={highlightEdges.length > 0 ? [selectedNode?.id || ''] : []}
+                onNodeClick={onNodeClick}
+                draggable
+                animated
+                labelType="all"
+                minNodeSize={35}
+                maxNodeSize={50}
+              />
+            </div>
+          </Suspense>
+        </GraphErrorBoundary>
 
         {/* 侧边信息面板 */}
         <div className="space-y-4">
