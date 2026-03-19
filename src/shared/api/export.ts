@@ -1,14 +1,12 @@
-import { appEnv } from '@/shared/config/env'
+import { requestRaw } from '@/shared/api/http-client'
 
 export async function exportProject(projectId: string, format: 'md' | 'txt' = 'md'): Promise<void> {
-  const response = await fetch(
-    `${appEnv.apiBaseUrl}/projects/${projectId}/export?format=${format}`,
-  )
-
-  if (!response.ok) {
-    const text = await response.text().catch(() => `HTTP ${response.status}`)
-    throw new Error(text)
-  }
+  const response = await requestRaw(`/projects/${projectId}/export?format=${format}`, {
+    method: 'GET',
+    headers: {
+      Accept: 'text/plain, text/markdown, application/octet-stream',
+    },
+  })
 
   const blob = await response.blob()
   const disposition = response.headers.get('Content-Disposition') ?? ''

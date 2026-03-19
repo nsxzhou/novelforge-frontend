@@ -8,6 +8,7 @@ import {
   Plus, BookOpen, FileText, AlignLeft, Undo2,
 } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { listAssets } from '@/shared/api/assets'
 import {
   confirmChapter,
   unconfirmChapter,
@@ -24,7 +25,7 @@ import type { Chapter } from '@/shared/api/types'
 import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
 import { ErrorState, LoadingState } from '@/shared/ui/feedback'
-import { Input, Textarea, FormField } from '@/shared/ui/input'
+import { Select, Textarea, FormField } from '@/shared/ui/input'
 import { StreamingText } from '@/shared/ui/streaming-text'
 import { Badge } from '@/shared/ui/badge'
 import { Tabs } from '@/shared/ui/tabs'
@@ -35,12 +36,13 @@ import { getErrorMessage } from '@/shared/lib/error-message'
 import { variants } from '@/shared/lib/motion'
 import { cn } from '@/shared/lib/cn'
 import { wordCount } from '@/shared/lib/format'
+import { parseStructuredContent } from '@/features/assets/schemas/asset-content'
+import { flattenOutlineChapters, type OutlineData } from '@/features/assets/schemas/outline-schema'
 import { TiptapEditor, type TextSelection } from './components/tiptap-editor'
 import { RewritePopover } from './components/rewrite-popover'
 
 const createSchema = z.object({
-  title: z.string().trim().min(1, '请填写章节标题'),
-  ordinal: z.coerce.number().int().min(1, '序号必须 >= 1'),
+  ordinal: z.coerce.number().int().min(1, '请选择章节计划'),
   instruction: z.string().trim().min(1, '请填写创作要求'),
 })
 
@@ -107,7 +109,7 @@ export function ChaptersPanel({
 
   const createForm = useForm<CreateFormValue>({
     resolver: zodResolver(createSchema),
-    defaultValues: { title: '', ordinal: 1, instruction: '' },
+    defaultValues: { ordinal: 1, instruction: '' },
   })
 
   const continueForm = useForm<ContinueFormValue>({
@@ -123,6 +125,11 @@ export function ChaptersPanel({
   const chaptersQuery = useQuery({
     queryKey: queryKeys.chapters(projectId),
     queryFn: () => listChapters(projectId, 100, 0),
+  })
+
+  const assetsQuery = useQuery({
+    queryKey: queryKeys.assetsAll(projectId, 'all'),
+    queryFn: () => listAssets({ projectId, limit: 100, offset: 0 }),
   })
 
   const chapterDetailQuery = useQuery({
@@ -178,8 +185,9 @@ export function ChaptersPanel({
   function handleCreateSubmit(value: CreateFormValue) {
     startStream()
     setShowCreateDialog(false)
-    createChapterStream(projectId, value, makeCallbacks((result) => {
-      createForm.reset({ title: '', ordinal: result.chapter.ordinal + 1, instruction: '' })
+    createChapterStream(projectId, value, makeCallbacks(() => {
+      const nextOrdinal = unwrittenPlannedChapters.find((chapter) => chapter.ordinal !== value.ordinal)?.ordinal ?? value.ordinal
+      createForm.reset({ ordinal: nextOrdinal, instruction: '' })
     }), abortRef.current!.signal)
   }
 
@@ -242,6 +250,24 @@ export function ChaptersPanel({
     () => [...(chaptersQuery.data ?? [])].sort((a, b) => a.ordinal - b.ordinal),
     [chaptersQuery.data],
   )
+  const outlineData = useMemo(() => {
+    const outlineAsset = (assetsQuery.data ?? []).find((asset) => asset.type === 'outline')
+    if (!outlineAsset) return null
+    return parseStructuredContent(outlineAsset.content, 'outline') as OutlineData | null
+  }, [assetsQuery.data])
+  const outlineAssetExists = useMemo(
+    () => (assetsQuery.data ?? []).some((asset) => asset.type === 'outline'),
+    [assetsQuery.data],
+  )
+  const plannedChapters = useMemo(
+    () => flattenOutlineChapters(outlineData),
+    [outlineData],
+  )
+  const unwrittenPlannedChapters = useMemo(
+    () => plannedChapters.filter((planned) => !chapters.some((chapter) => chapter.ordinal === planned.ordinal)),
+    [plannedChapters, chapters],
+  )
+  const selectedPlannedOrdinal = createForm.watch('ordinal')
 
   const isDraft = selectedChapter?.status === 'draft'
   const hasUnsavedChanges = editedContent !== null && editedContent !== selectedChapter?.content
@@ -280,10 +306,13 @@ export function ChaptersPanel({
   }, [selectedChapterId])
 
   useEffect(() => {
-    return () => {
-      abortRef.current?.abort()
-      abortRef.current = null
+    if (showCreateDialog && unwrittenPlannedChapters.length > 0) {
+      createForm.setValue('ordinal', unwrittenPlannedChapters[0].ordinal)
     }
+  }, [createForm, showCreateDialog, unwrittenPlannedChapters])
+
+  useEffect(() => () => {
+    abortRef.current?.abort()
   }, [])
 
   return (
@@ -292,7 +321,12 @@ export function ChaptersPanel({
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-medium text-foreground">章节列表</h3>
-          <Button size="sm" onClick={() => setShowCreateDialog(true)} leftIcon={<Plus className="h-3.5 w-3.5" />}>
+          <Button
+            size="sm"
+            onClick={() => setShowCreateDialog(true)}
+            disabled={unwrittenPlannedChapters.length === 0}
+            leftIcon={<Plus className="h-3.5 w-3.5" />}
+          >
             新章节
           </Button>
         </div>
@@ -342,7 +376,13 @@ export function ChaptersPanel({
           <EmptyState
             icon={<BookOpen className="h-5 w-5" />}
             title="暂无章节"
-            description="生成新章节开始创作"
+            description={
+              unwrittenPlannedChapters.length > 0
+                ? '从大纲计划中选择章节开始创作'
+                : outlineAssetExists
+                  ? '当前大纲结构无效或未规划章节，请先修复分卷制大纲。'
+                  : '请先创建大纲并规划章节'
+            }
             className="py-8"
           />
         )}
@@ -515,23 +555,44 @@ export function ChaptersPanel({
         open={showCreateDialog}
         onClose={() => setShowCreateDialog(false)}
         title="生成新章节"
-        description="输入章节信息和创作要求"
+        description={unwrittenPlannedChapters.length > 0 ? '从大纲计划中选择尚未写作的章节，再补充本章创作要求。' : '请先在大纲中规划章节，随后按计划生成正文。'}
       >
         <form className="space-y-4" onSubmit={createForm.handleSubmit(handleCreateSubmit)}>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <FormField label="章节标题" error={createForm.formState.errors.title?.message}>
-              <Input {...createForm.register('title')} placeholder="例如：第一章 王城初见" />
-            </FormField>
-            <FormField label="章节序号" error={createForm.formState.errors.ordinal?.message}>
-              <Input type="number" min={1} {...createForm.register('ordinal')} />
-            </FormField>
-          </div>
+          <FormField
+            label="章节计划"
+            error={createForm.formState.errors.ordinal?.message}
+            description={unwrittenPlannedChapters.length > 0 ? '标题由大纲计划提供，生成时按所选章节序号创建。' : undefined}
+          >
+            <Select
+              {...createForm.register('ordinal')}
+              disabled={unwrittenPlannedChapters.length === 0}
+            >
+              {unwrittenPlannedChapters.length === 0 ? (
+                <option value="0">暂无可写章节</option>
+              ) : null}
+              {unwrittenPlannedChapters.map((chapter) => (
+                <option key={chapter.ordinal} value={chapter.ordinal}>
+                  第{chapter.ordinal}章 · {chapter.title || '未命名章节'}
+                </option>
+              ))}
+            </Select>
+          </FormField>
+          {unwrittenPlannedChapters.length > 0 ? (
+            <div className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-sm text-muted-foreground">
+              {(() => {
+                const selectedPlannedChapter = unwrittenPlannedChapters.find(
+                  (chapter) => chapter.ordinal === Number(selectedPlannedOrdinal),
+                ) ?? unwrittenPlannedChapters[0]
+                return selectedPlannedChapter?.summary ? selectedPlannedChapter.summary : '该章节暂无摘要，可直接用创作要求补充细节。'
+              })()}
+            </div>
+          ) : null}
           <FormField label="创作要求" error={createForm.formState.errors.instruction?.message}>
-            <Textarea rows={4} {...createForm.register('instruction')} placeholder="描述章节生成要求" />
+            <Textarea rows={4} {...createForm.register('instruction')} placeholder="描述本章生成要求，例如视角、节奏、重点冲突" />
           </FormField>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => setShowCreateDialog(false)}>取消</Button>
-            <Button type="submit" disabled={isStreaming} leftIcon={<WandSparkles className="h-3.5 w-3.5" />}>生成章节</Button>
+            <Button type="submit" disabled={isStreaming || unwrittenPlannedChapters.length === 0} leftIcon={<WandSparkles className="h-3.5 w-3.5" />}>生成章节</Button>
           </DialogFooter>
         </form>
       </Dialog>

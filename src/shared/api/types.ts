@@ -1,4 +1,6 @@
-﻿export type ProjectStatus = 'draft' | 'active' | 'archived'
+import { GENERATED_RELATION_TYPES } from '@/shared/api/generated/contracts'
+
+export type ProjectStatus = 'draft' | 'active' | 'archived'
 
 export type Project = {
   id: string
@@ -44,9 +46,18 @@ export type WorldbuildingSeed = {
 }
 
 export type OutlineChapterSeed = {
+  ordinal: number
+  title: string
+  summary?: string
+  purpose?: string
+  must_include?: string[]
+}
+
+export type OutlineVolumeSeed = {
   title: string
   summary?: string
   key_events?: string[]
+  chapters: OutlineChapterSeed[]
 }
 
 export type OutlineSeed = {
@@ -54,7 +65,7 @@ export type OutlineSeed = {
   premise?: string
   themes?: string[]
   central_conflict?: string
-  chapters?: OutlineChapterSeed[]
+  volumes?: OutlineVolumeSeed[]
   ending?: string
   notes?: string
 }
@@ -115,7 +126,6 @@ export interface RelationTypeConfig {
   color: string
 }
 
-// 结构化关系（新格式）
 export interface CharacterRelation {
   target: string
   type: RelationType
@@ -123,34 +133,26 @@ export interface CharacterRelation {
   description?: string
 }
 
-// 旧格式兼容
-export type CharacterRelationship = {
-  target: string
-  relation: string
-}
-
-// 默认关系类型配置
-export const RELATION_TYPES: RelationTypeConfig[] = [
-  { value: 'ally', label: '盟友', color: '#10B981' },
-  { value: 'enemy', label: '敌对', color: '#EF4444' },
-  { value: 'family', label: '亲属', color: '#3B82F6' },
-  { value: 'mentor', label: '师徒', color: '#F59E0B' },
-  { value: 'friend', label: '朋友', color: '#8B5CF6' },
-  { value: 'rival', label: '对手', color: '#EC4899' },
-  { value: 'custom', label: '自定义', color: '#6B7280' },
-]
+// 默认关系类型配置，来自后端生成元数据。
+export const DEFAULT_RELATION_TYPES: RelationTypeConfig[] = [...GENERATED_RELATION_TYPES]
 
 // 获取关系显示标签
-export function getRelationLabel(relation: CharacterRelation): string {
+export function getRelationLabel(
+  relation: CharacterRelation,
+  relationTypes: RelationTypeConfig[] = DEFAULT_RELATION_TYPES,
+): string {
   if (relation.type === 'custom') {
     return relation.custom_label || '自定义'
   }
-  return RELATION_TYPES.find((t) => t.value === relation.type)?.label || relation.type
+  return relationTypes.find((t) => t.value === relation.type)?.label || relation.type
 }
 
 // 获取关系颜色
-export function getRelationColor(type: RelationType): string {
-  return RELATION_TYPES.find((t) => t.value === type)?.color || '#6B7280'
+export function getRelationColor(
+  type: RelationType,
+  relationTypes: RelationTypeConfig[] = DEFAULT_RELATION_TYPES,
+): string {
+  return relationTypes.find((t) => t.value === type)?.color || '#6B7280'
 }
 
 export type CharacterState = {
@@ -160,7 +162,7 @@ export type CharacterState = {
   character_name: string
   location: string
   emotional_state: string
-  relationships: string
+  relationships: CharacterRelation[]
   notes: string
   created_at: string
   updated_at: string
@@ -207,7 +209,7 @@ export type LLMProvider = {
   provider: string
   model: string
   base_url: string
-  api_key: string
+  api_key_masked: string
   timeout_seconds: number
   priority: number
   enabled: boolean

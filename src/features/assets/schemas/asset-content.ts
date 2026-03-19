@@ -1,4 +1,5 @@
 import type { z } from 'zod'
+import { ASSET_TYPE_TO_SCHEMA } from '@/shared/api/generated/contracts'
 import type { AssetType } from '@/shared/api/types'
 import { characterSchema, createDefaultCharacter, type CharacterData } from './character-schema'
 import {
@@ -6,17 +7,16 @@ import {
   createDefaultWorldbuilding,
   type WorldbuildingData,
 } from './worldbuilding-schema'
-import { outlineSchema, createDefaultOutline, type OutlineData } from './outline-schema'
+import {
+  outlineSchema,
+  createDefaultOutline,
+  resequenceOutlineOrdinals,
+  type OutlineData,
+} from './outline-schema'
 
 export type StructuredContent = CharacterData | WorldbuildingData | OutlineData
 export type ContentFormat = 'structured' | 'plain'
-
-/** AssetType → schema name 的唯一映射。 */
-export const ASSET_TYPE_TO_SCHEMA: Partial<Record<AssetType, string>> = {
-  character: 'character_v1',
-  worldbuilding: 'worldbuilding_v1',
-  outline: 'outline_v1',
-}
+export { ASSET_TYPE_TO_SCHEMA }
 
 /** AssetType → Zod schema 的唯一映射。 */
 const SCHEMA_PARSERS: Partial<Record<AssetType, z.ZodType<StructuredContent>>> = {
@@ -61,7 +61,10 @@ export function parseStructuredContent(
  * 将结构化数据序列化为 JSON 字符串。
  */
 export function serializeStructuredContent(data: StructuredContent): string {
-  return JSON.stringify(data, null, 2)
+  const normalized = data._schema === 'outline_v2'
+    ? resequenceOutlineOrdinals(data as OutlineData)
+    : data
+  return JSON.stringify(normalized, null, 2)
 }
 
 /**

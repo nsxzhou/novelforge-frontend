@@ -35,6 +35,21 @@ npm run dev
 | `npm run test` | 运行当前已提交的 Vitest 单测（以纯逻辑模块为主） |
 | `npm run test:e2e` | 预留 Playwright 命令；当前仓库未提交测试配置 |
 
+## 前后端交互方式
+
+- API Base 来自 `VITE_API_BASE_URL`，默认值是 `http://127.0.0.1:8080/api/v1`。
+- 普通 JSON 请求统一走 `shared/api/http-client.ts` 的 `request()`；统一处理超时、错误体解析和 `X-User-ID` 注入。
+- 文件导出走同一客户端里的 `requestRaw()`，由 `shared/api/export.ts` 负责下载文件流与 `Content-Disposition` 文件名解析。
+- 流式接口统一走 `shared/api/sse-client.ts`；章节生成、章节续写、章节改写、Ghost Text、灵感 brainstorm、资产生成都通过 SSE 消费。
+- SSE done/result 事件在进入 UI 前会通过 `shared/api/runtime-schemas.ts` 做运行时校验；格式不合法会直接报错，而不是静默吞掉。
+- 当前前后端共享元数据有两层：
+  `shared/api/generated/contracts.ts` 由后端 `contractgen` 生成，提供资产 schema 映射和默认关系类型配置。
+  `shared/api/types.ts` 和 `shared/api/runtime-schemas.ts` 负责前端静态类型与运行时校验。
+- 当前关键契约：
+  `CharacterState.relationships` 是结构化数组，不再是 string DTO。
+  Provider 列表展示字段是 `api_key_masked`，表单提交字段仍是 `api_key`。
+  关系图、关系编辑器和关系展示优先消费 `/relation-types` 返回的配置，生成文件只作为默认回退。
+
 ## 路由
 
 | 路径 | 组件 | 说明 |
@@ -106,13 +121,11 @@ src/
 
 ## 已知限制
 
-### Relationships 数据契约
+### 契约生成仍不完整
 
-- 前后端仍为 **string-based DTO**（后端 JSONB → API string → 前端 parse）
-- `parseRelationships()` 解析失败时静默返回 `[]`，不展示原始异常值
-- 用户再次保存时，旧脏值可能被静默覆盖
-
-改进方向：升级为结构化 DTO（`CharacterRelationship[]`），彻底消除 string 序列化开销。
+- 当前生成层只覆盖资产 schema 映射和默认关系类型配置
+- 共享 DTO 与 SSE runtime schema 仍有一部分手写维护
+- 若后续扩展更多接口字段，仍可能出现“生成元数据已更新，但运行时校验未同步”的漂移风险
 
 ### 跨章节数据依赖
 
@@ -125,6 +138,12 @@ src/
 - 后续章节重提取会 **覆盖** 人工修订（delete-and-recreate）
 - UX 层面已通过显式提示告知用户覆盖风险
 - 架构上无独立的 durable override 层
+
+### 流式内容校验边界
+
+- SSE 的 done/result 事件已做 runtime schema 校验
+- `content` 增量事件仍按纯文本块消费，不做逐块 schema 校验
+- 若后续引入结构化 progress event，需要同步补充事件级 schema
 
 ## Roadmap / 原型差异
 

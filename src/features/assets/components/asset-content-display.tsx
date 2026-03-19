@@ -2,7 +2,7 @@ import type { AssetType } from '@/shared/api/types'
 import { detectContentFormat, parseStructuredContent } from '../schemas/asset-content'
 import type { CharacterData } from '../schemas/character-schema'
 import type { WorldbuildingData } from '../schemas/worldbuilding-schema'
-import type { OutlineData } from '../schemas/outline-schema'
+import { flattenOutlineChapters, type OutlineData } from '../schemas/outline-schema'
 
 type AssetContentDisplayProps = {
   content: string
@@ -101,6 +101,7 @@ function WorldbuildingDisplay({ data }: { data: WorldbuildingData }) {
 function OutlineDisplay({ data }: { data: OutlineData }) {
   const themes = data.themes?.filter(Boolean) ?? []
   const volumes = data.volumes ?? []
+  const chapters = flattenOutlineChapters(data)
 
   const hasContent =
     data.premise || themes.length > 0 || data.central_conflict || volumes.length > 0 || data.ending || data.notes
@@ -120,22 +121,42 @@ function OutlineDisplay({ data }: { data: OutlineData }) {
       {volumes.length > 0 ? (
         <div>
           <span className="font-medium text-foreground">分卷规划：</span>
-          <div className="mt-1 space-y-1.5 pl-3">
-            {volumes.map((vol, i) => (
-              <div key={i} className="border-l-2 border-border pl-2">
-                <span className="font-medium text-foreground">{vol.title || `第 ${i + 1} 卷`}</span>
-                {vol.summary ? (
-                  <p className="text-muted-foreground">{vol.summary}</p>
-                ) : null}
-                {vol.key_events && vol.key_events.filter(Boolean).length > 0 ? (
-                  <p className="text-muted-foreground">
-                    关键事件：{vol.key_events.filter(Boolean).join('、')}
+          <div className="mt-2 space-y-3">
+            {volumes.map((volume, index) => (
+              <div key={`${volume.title}-${index}`} className="rounded-lg border border-border bg-[#FBFCFE] p-3">
+                <p className="font-medium text-foreground">{volume.title || `第 ${index + 1} 卷`}</p>
+                {volume.summary ? <p className="mt-1 text-muted-foreground">{volume.summary}</p> : null}
+                {volume.key_events && volume.key_events.filter(Boolean).length > 0 ? (
+                  <p className="mt-1 text-muted-foreground">
+                    关键事件：{volume.key_events.filter(Boolean).join('、')}
                   </p>
+                ) : null}
+                {volume.chapters.length > 0 ? (
+                  <div className="mt-2 space-y-1.5 pl-3">
+                    {volume.chapters.map((chapter) => (
+                      <div key={chapter.ordinal} className="border-l-2 border-border pl-2">
+                        <span className="font-medium text-foreground">
+                          第 {chapter.ordinal} 章 · {chapter.title || '未命名章节'}
+                        </span>
+                        {chapter.summary ? <p className="text-muted-foreground">{chapter.summary}</p> : null}
+                        {chapter.purpose ? <p className="text-muted-foreground">章节目的：{chapter.purpose}</p> : null}
+                        {chapter.must_include && chapter.must_include.filter(Boolean).length > 0 ? (
+                          <p className="text-muted-foreground">
+                            必须包含：{chapter.must_include.filter(Boolean).join('、')}
+                          </p>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
                 ) : null}
               </div>
             ))}
           </div>
         </div>
+      ) : null}
+
+      {volumes.length === 0 && chapters.length > 0 ? (
+        <FieldDisplay label="计划章节数" value={`${chapters.length} 章`} />
       ) : null}
 
       {data.ending ? <FieldDisplay label="结局构想" value={data.ending} /> : null}

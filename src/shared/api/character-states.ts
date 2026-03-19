@@ -1,13 +1,14 @@
 import { request } from '@/shared/api/http-client'
-import type { CharacterState, RelationTypeConfig } from '@/shared/api/types'
+import type { CharacterRelation, CharacterState, RelationTypeConfig } from '@/shared/api/types'
 
 type CharacterStateListResponse = { character_states: CharacterState[] }
+type RelationTypesResponse = { relation_types: RelationTypeConfig[] }
 
 export type UpdateCharacterStateInput = {
   character_name: string
   location: string
   emotional_state: string
-  relationships: string
+  relationships: CharacterRelation[]
   notes: string
 }
 
@@ -44,7 +45,5 @@ export function deleteCharacterState(projectId: string, stateId: string): Promis
 }
 
 export function listRelationTypes(): Promise<RelationTypeConfig[]> {
-  return request<{ relation_types: RelationTypeConfig[] }>('/relation-types').then(
-    (response) => response.relation_types,
-  )
+  return request<RelationTypesResponse>('/relation-types').then((response) => response.relation_types)
 }

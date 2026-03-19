@@ -1,6 +1,7 @@
-﻿import { request } from '@/shared/api/http-client'
-import { streamRequest, type SSECallbacks } from '@/shared/api/sse-client'
+import { request } from '@/shared/api/http-client'
+import { parseJsonWithSchema, streamRequest, type SSECallbacks } from '@/shared/api/sse-client'
 import type { GuidedProjectCandidate, Project, ProjectListItem, ProjectStatus, Asset } from '@/shared/api/types'
+import { brainstormEventSchema, brainstormResultSchema } from '@/shared/api/runtime-schemas'
 
 type ProjectListResponse = { projects: ProjectListItem[] }
 type GuidedCandidatesResponse = { candidates: GuidedProjectCandidate[] }
@@ -98,12 +99,13 @@ export function brainstormGuidedProjectStream(
   streamRequest<BrainstormResult>('/projects/guided/brainstorm', input, callbacks, signal, {
     doneEventName: 'result',
     timeoutMs: 300_000,
+    parseDone: (rawData) => parseJsonWithSchema(rawData, brainstormResultSchema, 'brainstorm result'),
     onEvent: (eventType, rawData) => {
       if (eventType === 'result' || eventType === 'error') {
         return
       }
       try {
-        onEvent(JSON.parse(rawData) as BrainstormEvent)
+        onEvent(parseJsonWithSchema(rawData, brainstormEventSchema, `brainstorm ${eventType} event`))
       } catch {
         // ignore malformed progress events
       }

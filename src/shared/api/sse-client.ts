@@ -1,5 +1,6 @@
 import { getClientUserId } from '@/shared/api/client-identity'
 import { appEnv } from '@/shared/config/env'
+import type { ZodType } from 'zod'
 
 export type SSECallbacks<T> = {
   onContent: (chunk: string) => void
@@ -14,6 +15,25 @@ type StreamRequestOptions<T> = {
   timeoutMs?: number
   onEvent?: (eventType: string, rawData: string) => void
   parseDone?: (rawData: string) => T
+}
+
+export function parseJsonWithSchema<T>(
+  rawData: string,
+  schema: ZodType<T>,
+  label: string,
+): T {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(rawData) as unknown
+  } catch {
+    throw new Error(`${label} is not valid JSON`)
+  }
+
+  const result = schema.safeParse(parsed)
+  if (!result.success) {
+    throw new Error(`${label} failed schema validation`)
+  }
+  return result.data
 }
 
 export function streamRequest<T>(

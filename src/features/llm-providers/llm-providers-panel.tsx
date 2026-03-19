@@ -1,4 +1,4 @@
-﻿import { useState } from 'react'
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -53,11 +53,6 @@ const defaultValues: ProviderFormValue = {
   timeout_seconds: 60,
   priority: 0,
   enabled: true,
-}
-
-function maskApiKey(key: string): string {
-  if (key.length <= 8) return '****'
-  return key.slice(0, 4) + '····' + key.slice(-4)
 }
 
 export function LLMProvidersPanel() {
@@ -353,7 +348,7 @@ export function LLMProvidersPanel() {
                   <p>
                     <span className="font-medium text-foreground">Key:</span>{' '}
                     <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">
-                      {maskApiKey(provider.api_key)}
+                      {provider.api_key_masked}
                     </code>
                   </p>
                 </div>

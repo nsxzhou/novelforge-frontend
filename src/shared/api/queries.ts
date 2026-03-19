@@ -1,4 +1,4 @@
-﻿export const queryKeys = {
+export const queryKeys = {
   stats: ['stats'] as const,
   projects: ['projects'] as const,
   project: (projectId: string) => ['project', projectId] as const,
@@ -10,6 +10,7 @@
   characterStatesLatest: (projectId: string) => ['characterStates', projectId, 'latest'] as const,
   characterStatesChapter: (projectId: string, chapterId: string) =>
     ['characterStates', projectId, 'chapter', chapterId] as const,
+  relationTypes: ['relationTypes'] as const,
   timeline: (projectId: string) => ['timeline', projectId] as const,
   llmProviders: ['llmProviders'] as const,
   prompts: (projectId: string) => ['prompts', projectId] as const,

@@ -14,7 +14,6 @@ import { Card } from '@/shared/ui/card'
 import { ErrorState, LoadingState } from '@/shared/ui/feedback'
 import { Input, Select, Textarea, FormField } from '@/shared/ui/input'
 import { SectionTitle } from '@/shared/ui/section-title'
-import { StreamingText } from '@/shared/ui/streaming-text'
 import { Badge } from '@/shared/ui/badge'
 import { Dialog, DialogFooter } from '@/shared/ui/dialog'
 import { Dropdown, DropdownItem, DropdownSeparator } from '@/shared/ui/dropdown'
@@ -64,9 +63,8 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
   const [showGenerate, setShowGenerate] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Asset | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [streamingContent, setStreamingContent] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
-  const [generationResult, setGenerationResult] = useState<string | null>(null)
+  const [generatedAssetPreview, setGeneratedAssetPreview] = useState<Asset | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const queryClient = useQueryClient()
   const { toast } = useToast()
@@ -74,6 +72,11 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
   const assetsQuery = useQuery({
     queryKey: queryKeys.assets(projectId, filterType),
     queryFn: () => listAssets({ projectId, type: filterType === 'all' ? undefined : filterType, limit: 100, offset: 0 }),
+  })
+
+  const allAssetsQuery = useQuery({
+    queryKey: queryKeys.assetsAll(projectId, 'all'),
+    queryFn: () => listAssets({ projectId, limit: 100, offset: 0 }),
   })
 
   const assetForm = useForm<AssetFormValue>({ resolver: zodResolver(assetSchema), defaultValues: defaultAssetValue })
@@ -104,9 +107,36 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
   function openAssetEditor(nextMode: AssetEditorMode) {
     if (!confirmDiscardDraft()) return
 
+    abortRef.current?.abort()
+    abortRef.current = null
+    setIsStreaming(false)
+    setGeneratedAssetPreview(null)
     resetAssetEditor(nextMode)
     setShowGenerate(false)
     setError(null)
+  }
+
+  function closeGeneratePanel() {
+    abortRef.current?.abort()
+    abortRef.current = null
+    setIsStreaming(false)
+    setGeneratedAssetPreview(null)
+    setShowGenerate(false)
+    setError(null)
+    generateForm.reset(defaultGenerateValue)
+  }
+
+  function openGeneratePanel() {
+    if (showForm && !confirmDiscardDraft()) return
+
+    abortRef.current?.abort()
+    abortRef.current = null
+    setIsStreaming(false)
+    setGeneratedAssetPreview(null)
+    resetAssetEditor({ type: 'closed' })
+    generateForm.reset(defaultGenerateValue)
+    setError(null)
+    setShowGenerate(true)
   }
 
   const refreshAssets = useCallback(async () => {
@@ -117,7 +147,7 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
   }, [queryClient, projectId, filterType])
 
   const createMutation = useMutation({
-    mutationFn: (input: AssetFormValue & { content_schema?: string }) => createAsset(projectId, input),
+    mutationFn: createAsset.bind(null, projectId),
     onSuccess: async () => {
       await refreshAssets()
       resetAssetEditor({ type: 'closed' })
@@ -128,7 +158,7 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
   })
 
   const updateMutation = useMutation({
-    mutationFn: ({ assetId, input }: { assetId: string; input: AssetFormValue & { content_schema?: string } }) => updateAsset(assetId, input),
+    mutationFn: ({ assetId, input }: { assetId: string; input: Parameters<typeof updateAsset>[1] }) => updateAsset(assetId, input),
     onSuccess: async () => {
       await refreshAssets()
       resetAssetEditor({ type: 'closed' })
@@ -150,27 +180,52 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
   })
 
   function handleGenerateSubmit(value: GenerateFormValue) {
-    setStreamingContent(''); setIsStreaming(true); setError(null); setGenerationResult(null)
+    setIsStreaming(true)
+    setError(null)
+    setGeneratedAssetPreview(null)
     abortRef.current = new AbortController()
     generateAssetStream(projectId, value, {
-      onContent: (chunk: string) => setStreamingContent((prev) => prev + chunk),
+      onContent: () => {},
       onDone: async (result: AssetGenerationResponse) => {
+        abortRef.current = null
         setIsStreaming(false)
-        setGenerationResult(`生成成功：${result.asset.title}，已打开编辑面板供预览`)
+        setGeneratedAssetPreview(result.asset)
         generateForm.reset(defaultGenerateValue)
-        setShowGenerate(false)
         await refreshAssets()
-        // 自动打开编辑面板，让用户预览和修改 AI 生成的资产
-        resetAssetEditor({ type: 'edit', asset: result.asset })
-        toast('AI 资产已生成，请预览确认')
+        toast('AI 资产已生成，可先预览再决定是否编辑')
       },
-      onError: (errMsg: string) => { setIsStreaming(false); setError(errMsg) },
+      onError: (errMsg: string) => {
+        abortRef.current = null
+        setIsStreaming(false)
+        setGeneratedAssetPreview(null)
+        setError(errMsg)
+      },
     }, abortRef.current.signal)
   }
 
-  function cancelGeneration() { abortRef.current?.abort(); setIsStreaming(false) }
+  function cancelGeneration() {
+    abortRef.current?.abort()
+    abortRef.current = null
+    setIsStreaming(false)
+    setError(null)
+  }
+
+  function handleEditGeneratedAsset() {
+    if (!generatedAssetPreview) return
+    openAssetEditor({ type: 'edit', asset: generatedAssetPreview })
+  }
+
+  function handleGenerateAgain() {
+    setGeneratedAssetPreview(null)
+    setError(null)
+    generateForm.reset(defaultGenerateValue)
+  }
 
   const sortedAssets = useMemo(() => [...(assetsQuery.data ?? [])].sort((a, b) => b.updated_at.localeCompare(a.updated_at)), [assetsQuery.data])
+  const outlineAsset = useMemo(
+    () => (allAssetsQuery.data ?? []).find((asset) => asset.type === 'outline') ?? null,
+    [allAssetsQuery.data],
+  )
   const isAssetSubmitting = createMutation.isPending || updateMutation.isPending
 
   function handleAssetSubmit(value: AssetFormValue) {
@@ -187,6 +242,14 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
 
   function handleEdit(asset: Asset) {
     openAssetEditor({ type: 'edit', asset })
+  }
+
+  function handleCreateAsset() {
+    if (outlineAsset) {
+      openAssetEditor({ type: 'edit', asset: outlineAsset })
+      return
+    }
+    openAssetEditor({ type: 'create' })
   }
 
   function handleCancelEdit() {
@@ -226,11 +289,11 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
             variant="secondary"
             size="sm"
             onClick={() => {
-              if (!showGenerate && showForm && !confirmDiscardDraft()) return
-              if (!showGenerate) {
-                resetAssetEditor({ type: 'closed' })
+              if (showGenerate) {
+                closeGeneratePanel()
+                return
               }
-              setShowGenerate((v) => !v)
+              openGeneratePanel()
             }}
             leftIcon={<Bot className="h-3.5 w-3.5" />}
           >
@@ -238,10 +301,10 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
           </Button>
           <Button
             size="sm"
-            onClick={() => openAssetEditor({ type: 'create' })}
+            onClick={handleCreateAsset}
             leftIcon={<Plus className="h-3.5 w-3.5" />}
           >
-            手动创建
+            {outlineAsset ? '编辑大纲' : '手动创建'}
           </Button>
         </div>
       </div>
@@ -266,17 +329,45 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
             <div className="flex gap-2">
               <Button type="submit" disabled={isStreaming} leftIcon={<Bot className="h-3.5 w-3.5" />}>发起生成</Button>
               {isStreaming && <Button type="button" variant="danger" size="sm" onClick={cancelGeneration} leftIcon={<Square className="h-3.5 w-3.5" />}>取消</Button>}
-              <Button type="button" variant="ghost" size="sm" onClick={() => setShowGenerate(false)}>关闭</Button>
+              <Button type="button" variant="ghost" size="sm" onClick={closeGeneratePanel}>关闭</Button>
             </div>
           </form>
+          {error && <ErrorState text={error} className="mt-4" />}
           {isStreaming && (
             <div className="mt-4 rounded-lg border border-[#E2E8F0] bg-muted p-4">
-              <p className="mb-2 text-xs font-medium text-foreground">AI 生成中</p>
-              <StreamingText content={streamingContent} isStreaming={isStreaming} />
+              <LoadingState text="AI 正在整理最终资产预览..." className="w-full justify-center border-0 bg-transparent px-0 py-0 text-foreground" />
+              <p className="mt-2 text-center text-xs text-muted-foreground">生成完成后将在此处直接展示最终效果。</p>
             </div>
           )}
-          {generationResult && !isStreaming && (
-            <p className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-700">{generationResult}</p>
+          {generatedAssetPreview && !isStreaming && (
+            <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50/60 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <p className="text-xs font-medium uppercase tracking-[0.12em] text-emerald-700">生成完成</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-base">{typeIcons[generatedAssetPreview.type]}</span>
+                    <h4 className="text-sm font-semibold text-foreground">{generatedAssetPreview.title}</h4>
+                    <Badge variant="success">{typeLabels[generatedAssetPreview.type]}</Badge>
+                  </div>
+                  <p className="text-sm text-emerald-700">以下为最终效果预览，可确认后再进入编辑。</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" onClick={handleEditGeneratedAsset} leftIcon={<FilePenLine className="h-3.5 w-3.5" />}>
+                    编辑资产
+                  </Button>
+                  <Button type="button" variant="secondary" size="sm" onClick={handleGenerateAgain}>
+                    继续生成
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={closeGeneratePanel}>
+                    关闭
+                  </Button>
+                </div>
+              </div>
+              <div className="mt-4 rounded-lg border border-white/80 bg-white p-4">
+                <p className="mb-2 text-xs font-medium text-foreground">最终效果预览</p>
+                <AssetContentDisplay content={generatedAssetPreview.content} assetType={generatedAssetPreview.type} />
+              </div>
+            </div>
           )}
         </Card>
       )}
@@ -333,8 +424,8 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
           title="暂无设定资产"
           description="创建世界观、角色或大纲来丰富你的故事"
           action={
-            <Button size="sm" onClick={() => openAssetEditor({ type: 'create' })} leftIcon={<Plus className="h-3.5 w-3.5" />}>
-              创建资产
+            <Button size="sm" onClick={handleCreateAsset} leftIcon={<Plus className="h-3.5 w-3.5" />}>
+              {outlineAsset ? '编辑大纲' : '创建资产'}
             </Button>
           }
         />

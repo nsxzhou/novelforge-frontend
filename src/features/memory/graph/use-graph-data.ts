@@ -1,16 +1,12 @@
 import { useMemo, useState, useCallback, useRef } from 'react'
+import type { ForceGraphMethods } from 'react-force-graph-2d'
 import type {
+  CharacterRelation,
   CharacterState,
+  RelationTypeConfig,
   RelationType,
 } from '@/shared/api/types'
 import { getRelationColor, getRelationLabel } from '@/shared/api/types'
-
-interface ParsedRelation {
-  target: string
-  type: RelationType
-  custom_label?: string
-  description?: string
-}
 
 export interface ForceGraphNode {
   id: string
@@ -27,12 +23,13 @@ export interface ForceGraphLink {
   target: string | ForceGraphNode
   label: string
   color: string
-  data: { relation: ParsedRelation }
+  data: { relation: CharacterRelation }
 }
 
 interface UseGraphDataParams {
   scopedStates: CharacterState[]
   knownCharacterNames: Set<string>
+  relationTypes: RelationTypeConfig[]
 }
 
 interface UseGraphDataResult {
@@ -45,60 +42,18 @@ interface UseGraphDataResult {
   setSearchQuery: (query: string) => void
   filterTypes: Set<RelationType>
   setFilterTypes: (types: Set<RelationType> | ((prev: Set<RelationType>) => Set<RelationType>)) => void
-  graphRef: React.MutableRefObject<any>
-}
-
-// 解析关系数据（兼容新旧格式）
-function parseRelations(value: string): ParsedRelation[] {
-  if (!value?.trim()) return []
-
-  try {
-    const parsed = JSON.parse(value) as unknown
-    if (!Array.isArray(parsed)) return []
-
-    const result: ParsedRelation[] = []
-    for (const item of parsed) {
-      if (!item || typeof item !== 'object') continue
-
-      const obj = item as Record<string, unknown>
-      const target = String(obj.target ?? '').trim()
-      if (!target) continue
-
-      // 新格式：有 type 字段
-      if (obj.type) {
-        result.push({
-          target,
-          type: obj.type as RelationType,
-          custom_label: obj.custom_label ? String(obj.custom_label) : undefined,
-          description: obj.description ? String(obj.description) : undefined,
-        })
-        continue
-      }
-
-      // 旧格式兼容：relation 字段
-      if (obj.relation) {
-        result.push({
-          target,
-          type: 'custom' as RelationType,
-          custom_label: String(obj.relation),
-        })
-      }
-    }
-
-    return result
-  } catch {
-    return []
-  }
+  graphRef: React.MutableRefObject<ForceGraphMethods<ForceGraphNode, ForceGraphLink> | null>
 }
 
 export function useGraphData({
   scopedStates,
   knownCharacterNames,
+  relationTypes,
 }: UseGraphDataParams): UseGraphDataResult {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [filterTypes, setFilterTypes] = useState<Set<RelationType>>(new Set())
-  const graphRef = useRef<any>(null)
+  const graphRef = useRef<ForceGraphMethods<ForceGraphNode, ForceGraphLink> | null>(null)
 
   // 生成图数据
   const { nodes, links } = useMemo(() => {
@@ -106,7 +61,7 @@ export function useGraphData({
     const stateNames = new Set(scopedStates.map((s) => s.character_name))
     const relatedNames = new Set(
       scopedStates.flatMap((s) =>
-        parseRelations(s.relationships).map((r) => r.target),
+        s.relationships.map((r) => r.target),
       ),
     )
     const allNames = new Set([
@@ -140,14 +95,14 @@ export function useGraphData({
 
     // 生成边
     const links: ForceGraphLink[] = scopedStates.flatMap((state) =>
-      parseRelations(state.relationships)
+      state.relationships
         .filter((r) => filterTypes.size === 0 || filterTypes.has(r.type))
         .map((relation) => {
-          const color = getRelationColor(relation.type)
+          const color = getRelationColor(relation.type, relationTypes)
           return {
             source: state.character_name,
             target: relation.target,
-            label: getRelationLabel(relation),
+            label: getRelationLabel(relation, relationTypes),
             color,
             data: { relation },
           }
@@ -155,7 +110,7 @@ export function useGraphData({
     )
 
     return { nodes, links }
-  }, [scopedStates, knownCharacterNames, searchQuery, filterTypes])
+  }, [scopedStates, knownCharacterNames, relationTypes, searchQuery, filterTypes])
 
   // 节点点击处理
   const onNodeClick = useCallback((node: ForceGraphNode) => {

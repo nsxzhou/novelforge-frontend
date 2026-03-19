@@ -27,6 +27,32 @@ type RequestOptions = {
   timeout?: number
 }
 
+async function fetchWithDefaults(path: string, options: RequestOptions = {}): Promise<Response> {
+  const method = options.method ?? 'GET'
+  const headers: Record<string, string> = {
+    ...(options.headers ?? {}),
+  }
+
+  if (options.body !== undefined && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json'
+  }
+
+  if (method !== 'GET' && !headers['X-User-ID']) {
+    headers['X-User-ID'] = getClientUserId()
+  }
+
+  const timeout = options.timeout ?? 30_000
+  const timeoutSignal = AbortSignal.timeout(timeout)
+  const signal = options.signal ? AbortSignal.any([timeoutSignal, options.signal]) : timeoutSignal
+
+  return fetch(`${appEnv.apiBaseUrl}${path}`, {
+    method,
+    headers,
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    signal,
+  })
+}
+
 async function parseJsonSafe(response: Response): Promise<unknown> {
   const contentType = response.headers.get('content-type')
   if (!contentType?.includes('application/json')) {
@@ -50,26 +76,7 @@ function toHttpError(response: Response, payload: unknown): HttpError {
 }
 
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const method = options.method ?? 'GET'
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(options.headers ?? {}),
-  }
-
-  if (method !== 'GET' && !headers['X-User-ID']) {
-    headers['X-User-ID'] = getClientUserId()
-  }
-
-  const timeout = options.timeout ?? 30_000
-  const timeoutSignal = AbortSignal.timeout(timeout)
-  const signal = options.signal ? AbortSignal.any([timeoutSignal, options.signal]) : timeoutSignal
-
-  const response = await fetch(`${appEnv.apiBaseUrl}${path}`, {
-    method,
-    headers,
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-    signal,
-  })
+  const response = await fetchWithDefaults(path, options)
 
   if (response.status === 204) {
     return undefined as T
@@ -82,4 +89,13 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   }
 
   return payload as T
+}
+
+export async function requestRaw(path: string, options: RequestOptions = {}): Promise<Response> {
+  const response = await fetchWithDefaults(path, options)
+  if (!response.ok) {
+    const payload = await parseJsonSafe(response)
+    throw toHttpError(response, payload)
+  }
+  return response
 }

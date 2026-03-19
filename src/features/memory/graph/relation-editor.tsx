@@ -2,9 +2,9 @@ import { Trash2 } from 'lucide-react'
 import { Button } from '@/shared/ui/button'
 import { Input, Select } from '@/shared/ui/input'
 import {
-  RELATION_TYPES,
   getRelationColor,
   type CharacterRelation,
+  type RelationTypeConfig,
   type RelationType,
 } from '@/shared/api/types'
 
@@ -12,12 +12,14 @@ interface RelationEditorProps {
   relations: CharacterRelation[]
   onChange: (relations: CharacterRelation[]) => void
   availableTargets: string[]
+  relationTypes: RelationTypeConfig[]
 }
 
 export function RelationEditor({
   relations,
   onChange,
   availableTargets,
+  relationTypes,
 }: RelationEditorProps) {
   const addRelation = () => {
     onChange([...relations, { target: '', type: 'ally' }])
@@ -77,7 +79,7 @@ export function RelationEditor({
                   })
                 }
               >
-                {RELATION_TYPES.map((type) => (
+                {relationTypes.map((type) => (
                   <option key={type.value} value={type.value}>
                     {type.label}
                   </option>
@@ -99,7 +101,7 @@ export function RelationEditor({
               {/* 关系类型颜色指示 */}
               <div
                 className="h-3 w-3 shrink-0 rounded-full"
-                style={{ backgroundColor: getRelationColor(relation.type) }}
+                style={{ backgroundColor: getRelationColor(relation.type, relationTypes) }}
               />
 
               {/* 删除按钮 */}

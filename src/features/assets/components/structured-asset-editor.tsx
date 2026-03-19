@@ -115,6 +115,27 @@ export function StructuredAssetEditor({ assetType, content, onChange }: Structur
       )
     }
 
+    if (!structured && rawContent.trim() !== '' && format === 'structured') {
+      return (
+        <div className="space-y-3">
+          <div className="rounded-md border border-red-200 bg-red-50 p-3">
+            <p className="text-sm text-red-700">
+              当前结构化内容无法被编辑器解析。
+              {assetType === 'outline' ? ' outline_v2 必须使用 volumes[].chapters[] 且章节 ordinal 连续。' : ''}
+            </p>
+            <div className="mt-2 flex gap-2">
+              <Button type="button" size="sm" onClick={() => setMode('raw')}>
+                切换到原始文本修复
+              </Button>
+              <Button type="button" variant="secondary" size="sm" onClick={handleConvertToNew}>
+                新建结构化内容
+              </Button>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
     const defaultData = structured ?? createDefaultStructuredContent(assetType)!
 
     return (

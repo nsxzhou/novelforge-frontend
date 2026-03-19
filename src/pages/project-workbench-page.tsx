@@ -9,6 +9,8 @@ import {
 import { getProject, updateProject, deleteProject } from '@/shared/api/projects'
 import { listAssets } from '@/shared/api/assets'
 import { listChapters } from '@/shared/api/chapters'
+import { parseStructuredContent } from '@/features/assets/schemas/asset-content'
+import { flattenOutlineChapters, type OutlineData } from '@/features/assets/schemas/outline-schema'
 import { exportProject } from '@/shared/api/export'
 import { queryKeys } from '@/shared/api/queries'
 import { LoadingState, ErrorState } from '@/shared/ui/feedback'
@@ -170,6 +172,14 @@ export function ProjectWorkbenchPage() {
     const project = projectQuery.data
     const assets = assetsQuery.data ?? []
     const chapters = chaptersQuery.data ?? []
+    const outlineAsset = assets.find((asset) => asset.type === 'outline')
+    const outlineData = outlineAsset
+      ? (parseStructuredContent(outlineAsset.content, 'outline') as OutlineData | null)
+      : null
+    const plannedChapters = flattenOutlineChapters(outlineData)
+    const plannedChapterCount = plannedChapters.length
+    const completedChapterCount = chapters.length
+    const remainingChapterCount = Math.max(plannedChapterCount - completedChapterCount, 0)
 
     switch (activeTab) {
       case 'overview':
@@ -226,6 +236,43 @@ export function ProjectWorkbenchPage() {
                     <span>更新于 {formatDate(project.updated_at)}</span>
                   </div>
 
+                  {plannedChapterCount > 0 ? (
+                    <div className="rounded-xl border border-dashed border-[#D6E4FF] bg-[#F8FBFF] p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium text-foreground">写作计划进度</p>
+                          <p className="mt-1 text-xs leading-6 text-muted-foreground">
+                            已完成 {completedChapterCount}/{plannedChapterCount} 章，剩余 {remainingChapterCount} 章待写。
+                          </p>
+                        </div>
+                        <Badge>{Math.round((completedChapterCount / plannedChapterCount) * 100)}%</Badge>
+                      </div>
+                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#E2E8F0]">
+                        <div
+                          className="h-full rounded-full bg-[#0F172A] transition-all duration-300"
+                          style={{ width: `${Math.min((completedChapterCount / plannedChapterCount) * 100, 100)}%` }}
+                        />
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        {plannedChapters.slice(0, 3).map((chapter) => {
+                          const written = chapters.some((item) => item.ordinal === chapter.ordinal)
+                          return (
+                            <div key={`${chapter.ordinal}-${chapter.title}`} className="flex items-start justify-between gap-3 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2">
+                              <div>
+                                <p className="text-sm font-medium text-foreground">第 {chapter.ordinal} 章 · {chapter.title || '未命名章节'}</p>
+                                {chapter.summary ? <p className="mt-1 text-xs leading-6 text-muted-foreground">{chapter.summary}</p> : null}
+                              </div>
+                              <Badge variant={written ? 'success' : 'warning'}>{written ? '已写' : '待写'}</Badge>
+                            </div>
+                          )
+                        })}
+                        {plannedChapters.length > 3 ? (
+                          <p className="text-xs text-muted-foreground">其余 {plannedChapters.length - 3} 章可在大纲与章节页继续推进。</p>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+
                   <div className="border-t border-border pt-4">
                     <Button
                       variant="ghost"
@@ -245,7 +292,9 @@ export function ProjectWorkbenchPage() {
             <div className="space-y-4">
               {[
                 { label: '设定资产', value: assets.length, icon: Boxes, color: 'text-foreground', bg: 'bg-muted' },
-                { label: '章节数', value: chapters.length, icon: BookOpen, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                { label: '已写章节', value: completedChapterCount, icon: BookOpen, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                { label: '计划章节', value: plannedChapterCount, icon: FileText, color: 'text-sky-600', bg: 'bg-sky-50' },
+                { label: '待写章节', value: remainingChapterCount, icon: ChevronRight, color: 'text-amber-600', bg: 'bg-amber-50' },
               ].map((stat) => {
                 const Icon = stat.icon
                 return (

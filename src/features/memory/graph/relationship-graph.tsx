@@ -1,23 +1,29 @@
 import { useCallback, useRef } from 'react'
 import ForceGraph2D from 'react-force-graph-2d'
+import type { LinkObject, NodeObject } from 'react-force-graph-2d'
 import { Search, RotateCcw } from 'lucide-react'
 import { Input } from '@/shared/ui/input'
 import { Button } from '@/shared/ui/button'
 import { Badge } from '@/shared/ui/badge'
 import { EmptyState } from '@/shared/ui/empty-state'
-import { RELATION_TYPES, type CharacterState, type RelationType } from '@/shared/api/types'
-import { useGraphData, type ForceGraphNode } from './use-graph-data'
+import type { CharacterState, RelationType, RelationTypeConfig } from '@/shared/api/types'
+import { useGraphData, type ForceGraphLink, type ForceGraphNode } from './use-graph-data'
 import { RelationLegend } from './relation-legend'
 
 interface RelationshipGraphProps {
   scopedStates: CharacterState[]
   knownCharacterNames: Set<string>
+  relationTypes: RelationTypeConfig[]
   isLoading?: boolean
 }
+
+type GraphCanvasNode = NodeObject<ForceGraphNode>
+type GraphCanvasLink = LinkObject<ForceGraphNode, ForceGraphLink>
 
 export function RelationshipGraph({
   scopedStates,
   knownCharacterNames,
+  relationTypes,
   isLoading,
 }: RelationshipGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -32,7 +38,7 @@ export function RelationshipGraph({
     filterTypes,
     setFilterTypes,
     graphRef,
-  } = useGraphData({ scopedStates, knownCharacterNames })
+  } = useGraphData({ scopedStates, knownCharacterNames, relationTypes })
 
   // 切换过滤类型
   const toggleFilterType = useCallback(
@@ -52,15 +58,15 @@ export function RelationshipGraph({
 
   // 自定义节点渲染
   const nodeCanvasObject = useCallback(
-    (node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
-      const label = node.name as string
+    (node: GraphCanvasNode, ctx: CanvasRenderingContext2D, globalScale: number) => {
+      const label = node.name
       const fontSize = 12 / globalScale
       const isSelected = selectedNodeId === node.id
-      const hasState = node.data?.hasState as boolean
-      const hasAsset = node.data?.hasAsset as boolean
-      const x = node.x as number
-      const y = node.y as number
-      const val = (node.val as number) || 8
+      const hasState = node.data?.hasState ?? false
+      const hasAsset = node.data?.hasAsset ?? false
+      const x = node.x ?? 0
+      const y = node.y ?? 0
+      const val = node.val || 8
 
       // 绘制节点圆形
       const r = val / globalScale
@@ -96,13 +102,13 @@ export function RelationshipGraph({
 
   // 自定义边渲染
   const linkCanvasObject = useCallback(
-    (link: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
-      const start = link.source as ForceGraphNode
-      const end = link.target as ForceGraphNode
-      if (!start?.x || !start?.y || !end?.x || !end?.y) return
+    (link: GraphCanvasLink, ctx: CanvasRenderingContext2D, globalScale: number) => {
+      const start = typeof link.source === 'object' ? link.source : null
+      const end = typeof link.target === 'object' ? link.target : null
+      if (!start || !end || start.x == null || start.y == null || end.x == null || end.y == null) return
 
-      const color = (link.color as string) || '#94A3B8'
-      const label = link.label as string
+      const color = link.color || '#94A3B8'
+      const label = link.label
       const isSelected = selectedNodeId && (start.id === selectedNodeId || end.id === selectedNodeId)
       const opacity = selectedNodeId && !isSelected ? 0.2 : 1
 
@@ -120,7 +126,7 @@ export function RelationshipGraph({
       const dy = end.y - start.y
       const angle = Math.atan2(dy, dx)
       const arrowLen = 8 / globalScale
-      const endR = ((end.val as number) || 8) / globalScale
+      const endR = (end.val || 8) / globalScale
       const arrowX = end.x - Math.cos(angle) * endR
       const arrowY = end.y - Math.sin(angle) * endR
 
@@ -216,7 +222,7 @@ export function RelationshipGraph({
 
         {/* 关系类型过滤 */}
         <div className="flex flex-wrap items-center gap-1.5">
-          {RELATION_TYPES.filter((t) => t.value !== 'custom').map((type) => (
+          {relationTypes.filter((t) => t.value !== 'custom').map((type) => (
             <button
               key={type.value}
               type="button"
@@ -252,15 +258,17 @@ export function RelationshipGraph({
           >
             <RotateCcw className="h-4 w-4" />
           </Button>
+          </div>
         </div>
-      </div>
 
-      {/* 图表容器 */}
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
+        <RelationLegend relationTypes={relationTypes} />
+
+        {/* 图表容器 */}
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
         <div ref={containerRef} className="h-[450px] overflow-hidden rounded-xl border border-border bg-[#FAFAFA]">
           <ForceGraph2D
-            ref={graphRef}
-            graphData={{ nodes, links }}
+            ref={graphRef as never}
+            graphData={{ nodes, links } as never}
             width={containerRef.current?.clientWidth || 800}
             height={450}
             backgroundColor="#FAFAFA"
@@ -367,9 +375,6 @@ export function RelationshipGraph({
               </p>
             </div>
           )}
-
-          {/* 图例 */}
-          <RelationLegend />
         </div>
       </div>
     </div>

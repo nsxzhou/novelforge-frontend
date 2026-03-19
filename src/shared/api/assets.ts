@@ -1,6 +1,7 @@
 import { request } from '@/shared/api/http-client'
-import { streamRequest, type SSECallbacks } from '@/shared/api/sse-client'
+import { parseJsonWithSchema, streamRequest, type SSECallbacks } from '@/shared/api/sse-client'
 import type { Asset, AssetType, GenerationRecord } from '@/shared/api/types'
+import { assetGenerationResponseSchema } from '@/shared/api/runtime-schemas'
 
 type AssetListResponse = { assets: Asset[] }
 export type AssetGenerationResponse = { asset: Asset; generation_record: GenerationRecord }
@@ -9,6 +10,7 @@ export type UpsertAssetInput = {
   type: AssetType
   title: string
   content: string
+  content_schema?: string
 }
 
 export type GenerateAssetInput = {
@@ -99,5 +101,7 @@ export function generateAssetStream(
   callbacks: SSECallbacks<AssetGenerationResponse>,
   signal?: AbortSignal,
 ): void {
-  streamRequest(`/projects/${projectId}/assets/generate/stream`, input, callbacks, signal)
+  streamRequest(`/projects/${projectId}/assets/generate/stream`, input, callbacks, signal, {
+    parseDone: (rawData) => parseJsonWithSchema(rawData, assetGenerationResponseSchema, 'asset generation result'),
+  })
 }

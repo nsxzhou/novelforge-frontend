@@ -2,7 +2,9 @@ import { useState } from 'react'
 import { ArrowRight, ChevronDown, ChevronUp } from 'lucide-react'
 import type { GuidedProjectCandidate } from '@/shared/api/types'
 import { Button } from '@/shared/ui/button'
+import { Badge } from '@/shared/ui/badge'
 import { cn } from '@/shared/lib/cn'
+import { flattenOutlineChapters } from '@/features/assets/schemas/outline-schema'
 
 function CandidateSection({ title, content }: { title: string; content: string | string[] | undefined }) {
   if (!content || (Array.isArray(content) && content.length === 0)) return null
@@ -65,62 +67,91 @@ export function StepCandidates({
       </div>
 
       <div className="space-y-4">
-        {candidates.map((candidate, index) => (
-          <button
-            type="button"
-            key={`${candidate.title}-${index}`}
-            onClick={() => onSelect(index)}
-            className={cn(
-              'w-full rounded-2xl border bg-white p-6 text-left transition-all duration-150',
-              selectedIndex === index
-                ? 'border-[#0F172A] shadow-[0_12px_32px_rgba(15,23,42,0.08)]'
-                : 'border-[#E2E8F0] hover:border-[#94A3B8]',
-            )}
-          >
-            <div className="mb-4 flex items-start justify-between gap-4">
-              <div>
-                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                  候选方案 {index + 1}
-                </p>
-                <h3 className="mt-1 text-xl font-medium tracking-tight text-foreground">{candidate.title}</h3>
+        {candidates.map((candidate, index) => {
+          const plannedChapters = flattenOutlineChapters(candidate.outline_seed)
+
+          return (
+            <button
+              type="button"
+              key={`${candidate.title}-${index}`}
+              onClick={() => onSelect(index)}
+              className={cn(
+                'w-full rounded-2xl border bg-white p-6 text-left transition-all duration-150',
+                selectedIndex === index
+                  ? 'border-[#0F172A] shadow-[0_12px_32px_rgba(15,23,42,0.08)]'
+                  : 'border-[#E2E8F0] hover:border-[#94A3B8]',
+              )}
+            >
+              <div className="mb-4 flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                    候选方案 {index + 1}
+                  </p>
+                  <h3 className="mt-1 text-xl font-medium tracking-tight text-foreground">{candidate.title}</h3>
+                </div>
+                <div
+                  className={cn(
+                    'flex h-8 min-w-8 items-center justify-center rounded-full border px-2 text-xs font-medium',
+                    selectedIndex === index
+                      ? 'border-[#0F172A] bg-[#0F172A] text-white'
+                      : 'border-[#CBD5E1] text-muted-foreground',
+                  )}
+                >
+                  {selectedIndex === index ? '已选' : '选择'}
+                </div>
               </div>
-              <div
-                className={cn(
-                  'flex h-8 min-w-8 items-center justify-center rounded-full border px-2 text-xs font-medium',
-                  selectedIndex === index
-                    ? 'border-[#0F172A] bg-[#0F172A] text-white'
-                    : 'border-[#CBD5E1] text-muted-foreground',
-                )}
-              >
-                {selectedIndex === index ? '已选' : '选择'}
+
+              <p className="mb-4 text-sm leading-7 text-foreground">{candidate.summary}</p>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <CandidateSection title="故事钩子" content={candidate.hook} />
+                <CandidateSection title="核心冲突" content={candidate.core_conflict} />
+                <CandidateSection title="氛围风格" content={candidate.tone} />
+                <CandidateSection title="主题" content={candidate.outline_seed.themes} />
               </div>
-            </div>
 
-            <p className="mb-4 text-sm leading-7 text-foreground">{candidate.summary}</p>
+              <div className="mt-4 grid gap-3">
+                <CandidateSection
+                  title="大纲种子"
+                  content={candidate.outline_seed.premise ?? candidate.outline_seed.notes}
+                />
+                <CandidateSection
+                  title="世界观种子"
+                  content={candidate.worldbuilding_seed.history ?? candidate.worldbuilding_seed.notes}
+                />
+                <CandidateSection
+                  title="主角种子"
+                  content={candidate.protagonist_seed.backstory ?? candidate.protagonist_seed.motivation}
+                />
+              </div>
 
-            <div className="grid gap-3 md:grid-cols-2">
-              <CandidateSection title="故事钩子" content={candidate.hook} />
-              <CandidateSection title="核心冲突" content={candidate.core_conflict} />
-              <CandidateSection title="氛围风格" content={candidate.tone} />
-              <CandidateSection title="主题" content={candidate.outline_seed.themes} />
-            </div>
-
-            <div className="mt-4 grid gap-3">
-              <CandidateSection
-                title="大纲种子"
-                content={candidate.outline_seed.premise ?? candidate.outline_seed.notes}
-              />
-              <CandidateSection
-                title="世界观种子"
-                content={candidate.worldbuilding_seed.history ?? candidate.worldbuilding_seed.notes}
-              />
-              <CandidateSection
-                title="主角种子"
-                content={candidate.protagonist_seed.backstory ?? candidate.protagonist_seed.motivation}
-              />
-            </div>
-          </button>
-        ))}
+              <div className="mt-4 rounded-xl border border-dashed border-[#D6E4FF] bg-[#F8FBFF] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">章节计划</p>
+                    <p className="mt-1 text-xs leading-6 text-muted-foreground">
+                      {plannedChapters.length > 0 ? `已规划 ${plannedChapters.length} 章，可直接进入逐章写作。` : '暂未提供章节计划。'}
+                    </p>
+                  </div>
+                  {plannedChapters.length > 0 ? <Badge>{plannedChapters.length} 章</Badge> : null}
+                </div>
+                {plannedChapters.length > 0 ? (
+                  <div className="mt-3 space-y-2">
+                    {plannedChapters.slice(0, 3).map((chapter) => (
+                      <div key={`${chapter.ordinal}-${chapter.title}`} className="rounded-lg border border-[#E2E8F0] bg-white px-3 py-2">
+                        <p className="text-sm font-medium text-foreground">第 {chapter.ordinal} 章 · {chapter.title || '未命名章节'}</p>
+                        {chapter.summary ? <p className="mt-1 text-xs leading-6 text-muted-foreground">{chapter.summary}</p> : null}
+                      </div>
+                    ))}
+                    {plannedChapters.length > 3 ? (
+                      <p className="text-xs text-muted-foreground">还有 {plannedChapters.length - 3} 章待展开。</p>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            </button>
+          )
+        })}
       </div>
 
       {selectedIndex !== null && (

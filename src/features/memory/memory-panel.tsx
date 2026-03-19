@@ -18,6 +18,7 @@ import {
   deleteCharacterState,
   listChapterCharacterStates,
   listLatestCharacterStates,
+  listRelationTypes,
   updateCharacterState,
   type UpdateCharacterStateInput,
 } from '@/shared/api/character-states'
@@ -37,7 +38,7 @@ import type {
   CharacterState,
   TimelineEvent,
 } from '@/shared/api/types'
-import { getRelationLabel } from '@/shared/api/types'
+import { DEFAULT_RELATION_TYPES, getRelationLabel } from '@/shared/api/types'
 import { parseStructuredContent } from '@/features/assets/schemas/asset-content'
 import { getErrorMessage } from '@/shared/lib/error-message'
 import { formatDate, formatRelativeTime } from '@/shared/lib/format'
@@ -87,57 +88,12 @@ function normalizeRelationships(value: RelationshipDraft[]): RelationshipDraft[]
   return result
 }
 
-function parseRelationships(value: string): RelationshipDraft[] {
-  if (!value.trim()) return []
-
-  try {
-    const parsed = JSON.parse(value) as unknown
-    if (!Array.isArray(parsed)) return []
-
-    const items: RelationshipDraft[] = []
-    for (const item of parsed) {
-      if (!item || typeof item !== 'object') continue
-      const obj = item as Record<string, unknown>
-      const target = String(obj.target ?? '').trim()
-      if (!target) continue
-
-      // 新格式：有 type 字段
-      if (obj.type) {
-        items.push({
-          target,
-          type: obj.type as RelationshipDraft['type'],
-          custom_label: obj.custom_label ? String(obj.custom_label) : undefined,
-          description: obj.description ? String(obj.description) : undefined,
-        })
-        continue
-      }
-
-      // 旧格式兼容：relation 字段
-      if (obj.relation) {
-        items.push({
-          target,
-          type: 'custom' as const,
-          custom_label: String(obj.relation),
-        })
-      }
-    }
-
-    return normalizeRelationships(items)
-  } catch {
-    return []
-  }
-}
-
-function serializeRelationships(value: RelationshipDraft[]) {
-  return JSON.stringify(normalizeRelationships(value))
-}
-
 function buildStateDraft(state: CharacterState): CharacterStateDraft {
   return {
     character_name: state.character_name,
     location: state.location,
     emotional_state: state.emotional_state,
-    relationships: parseRelationships(state.relationships),
+    relationships: normalizeRelationships(state.relationships),
     notes: state.notes,
   }
 }
@@ -147,7 +103,7 @@ function buildStateInput(draft: CharacterStateDraft): UpdateCharacterStateInput 
     character_name: draft.character_name,
     location: draft.location,
     emotional_state: draft.emotional_state,
-    relationships: serializeRelationships(draft.relationships),
+    relationships: normalizeRelationships(draft.relationships),
     notes: draft.notes,
   }
 }
@@ -164,7 +120,7 @@ function areStateDraftsEqual(a: CharacterStateDraft, b: CharacterStateDraft) {
     && a.location === b.location
     && a.emotional_state === b.emotional_state
     && a.notes === b.notes
-    && serializeRelationships(a.relationships) === serializeRelationships(b.relationships)
+    && JSON.stringify(normalizeRelationships(a.relationships)) === JSON.stringify(normalizeRelationships(b.relationships))
 }
 
 function areTimelineDraftsEqual(a: TimelineEventDraft, b: TimelineEventDraft) {
@@ -265,6 +221,12 @@ export function MemoryPanel({
     placeholderData: (previousData) => previousData,
   })
 
+  const relationTypesQuery = useQuery({
+    queryKey: queryKeys.relationTypes,
+    queryFn: listRelationTypes,
+    placeholderData: (previousData) => previousData,
+  })
+
   const timelineQuery = useQuery({
     queryKey: queryKeys.timeline(projectId),
     queryFn: () => listTimelineEvents(projectId),
@@ -308,8 +270,12 @@ export function MemoryPanel({
     [characterAssets],
   )
 
+  const relationTypes = relationTypesQuery.data ?? DEFAULT_RELATION_TYPES
   const activeStateQuery = scope === 'latest' ? latestStatesQuery : chapterStatesQuery
-  const scopedStates = activeStateQuery.data ?? []
+  const scopedStates = useMemo(
+    () => activeStateQuery.data ?? [],
+    [activeStateQuery.data],
+  )
   const currentScopeChapter = chapterScopeId ? (chaptersById[chapterScopeId] ?? null) : null
 
   useEffect(() => {
@@ -805,11 +771,12 @@ export function MemoryPanel({
                             relations={stateDraft.relationships}
                             onChange={(relations) => setStateDraft({
                               ...stateDraft,
-                              relationships: relations,
-                            })}
-                            availableTargets={Array.from(knownCharacterNames).filter(
-                              (name) => name !== stateDraft.character_name,
-                            )}
+                            relationships: relations,
+                          })}
+                          relationTypes={relationTypes}
+                          availableTargets={Array.from(knownCharacterNames).filter(
+                            (name) => name !== stateDraft.character_name,
+                          )}
                           />
                         </div>
                       </FormField>
@@ -865,13 +832,13 @@ export function MemoryPanel({
                       <div className="rounded-xl border border-border bg-white p-4">
                         <div className="flex items-center justify-between gap-3">
                           <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">角色关系</p>
-                          <Badge variant="default">{parseRelationships(selectedState.relationships).length} 条</Badge>
+                          <Badge variant="default">{selectedState.relationships.length} 条</Badge>
                         </div>
-                        {parseRelationships(selectedState.relationships).length > 0 ? (
+                        {selectedState.relationships.length > 0 ? (
                           <div className="mt-3 flex flex-wrap gap-2">
-                            {parseRelationships(selectedState.relationships).map((relationship, index) => (
+                            {selectedState.relationships.map((relationship, index) => (
                               <Badge key={`${relationship.target}-${index}`} variant="default">
-                                {relationship.target} · {getRelationLabel(relationship)}
+                                {relationship.target} · {getRelationLabel(relationship, relationTypes)}
                               </Badge>
                             ))}
                           </div>
@@ -1211,7 +1178,7 @@ export function MemoryPanel({
               </p>
             </div>
             <Badge icon={<GitBranch className="h-3 w-3" />} variant="default" className="shrink-0">
-              {scopedStates.reduce((sum, s) => sum + parseRelationships(s.relationships).length, 0)} 条关系边
+              {scopedStates.reduce((sum, s) => sum + s.relationships.length, 0)} 条关系边
             </Badge>
           </div>
 
@@ -1221,6 +1188,7 @@ export function MemoryPanel({
             <RelationshipGraph
               scopedStates={scopedStates}
               knownCharacterNames={knownCharacterNames}
+              relationTypes={relationTypes}
               isLoading={showStatesLoading}
             />
           )}
