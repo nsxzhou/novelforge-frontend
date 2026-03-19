@@ -1,12 +1,12 @@
-import { Suspense, useCallback, Component, type ReactNode } from 'react'
-import { GraphCanvas, lightTheme } from 'reagraph'
-import { Search, RotateCcw, AlertTriangle } from 'lucide-react'
+import { useCallback, useRef } from 'react'
+import ForceGraph2D from 'react-force-graph-2d'
+import { Search, RotateCcw } from 'lucide-react'
 import { Input } from '@/shared/ui/input'
 import { Button } from '@/shared/ui/button'
 import { Badge } from '@/shared/ui/badge'
 import { EmptyState } from '@/shared/ui/empty-state'
 import { RELATION_TYPES, type CharacterState, type RelationType } from '@/shared/api/types'
-import { useGraphData } from './use-graph-data'
+import { useGraphData, type ForceGraphNode } from './use-graph-data'
 import { RelationLegend } from './relation-legend'
 
 interface RelationshipGraphProps {
@@ -15,70 +15,23 @@ interface RelationshipGraphProps {
   isLoading?: boolean
 }
 
-// 错误边界组件
-class GraphErrorBoundary extends Component<
-  { children: ReactNode; fallback: ReactNode },
-  { hasError: boolean }
-> {
-  constructor(props: { children: ReactNode; fallback: ReactNode }) {
-    super(props)
-    this.state = { hasError: false }
-  }
-
-  static getDerivedStateFromError() {
-    return { hasError: true }
-  }
-
-  componentDidCatch(error: Error) {
-    console.error('Graph rendering error:', error)
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return this.props.fallback
-    }
-    return this.props.children
-  }
-}
-
-// WebGL 降级显示组件
-function GraphFallback() {
-  return (
-    <div className="flex h-[450px] flex-col items-center justify-center rounded-xl border border-border bg-[#FAFAFA]">
-      <AlertTriangle className="h-8 w-8 text-amber-500" />
-      <p className="mt-3 text-sm font-medium text-foreground">无法渲染关系图</p>
-      <p className="mt-1 text-xs text-muted-foreground">
-        当前环境不支持 WebGL，请使用支持 WebGL 的浏览器
-      </p>
-    </div>
-  )
-}
-
-// 图表加载中组件
-function GraphLoading() {
-  return (
-    <div className="flex h-[450px] items-center justify-center rounded-xl border border-border bg-[#FAFAFA]">
-      <p className="text-sm text-muted-foreground">加载图表中...</p>
-    </div>
-  )
-}
-
 export function RelationshipGraph({
   scopedStates,
   knownCharacterNames,
   isLoading,
 }: RelationshipGraphProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
   const {
     nodes,
-    edges,
-    selectedNode,
+    links,
+    selectedNodeId,
     onNodeClick,
     onClearSelection,
     searchQuery,
     setSearchQuery,
     filterTypes,
     setFilterTypes,
-    highlightEdges,
+    graphRef,
   } = useGraphData({ scopedStates, knownCharacterNames })
 
   // 切换过滤类型
@@ -97,9 +50,136 @@ export function RelationshipGraph({
     [setFilterTypes],
   )
 
-  // 获取选中节点的详细信息
-  const selectedState = selectedNode?.data?.state as CharacterState | undefined
-  const hasAsset = selectedNode?.data?.hasAsset as boolean | undefined
+  // 自定义节点渲染
+  const nodeCanvasObject = useCallback(
+    (node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+      const label = node.name as string
+      const fontSize = 12 / globalScale
+      const isSelected = selectedNodeId === node.id
+      const hasState = node.data?.hasState as boolean
+      const hasAsset = node.data?.hasAsset as boolean
+      const x = node.x as number
+      const y = node.y as number
+      const val = (node.val as number) || 8
+
+      // 绘制节点圆形
+      const r = val / globalScale
+      ctx.beginPath()
+      ctx.arc(x, y, r, 0, 2 * Math.PI, false)
+      ctx.fillStyle = isSelected ? '#0F172A' : hasState ? '#FFFFFF' : '#F8FAFC'
+      ctx.fill()
+      ctx.strokeStyle = isSelected ? '#0F172A' : '#CBD5E1'
+      ctx.lineWidth = hasState ? 1.5 / globalScale : 1 / globalScale
+      if (!hasState) {
+        ctx.setLineDash([4 / globalScale, 4 / globalScale])
+      }
+      ctx.stroke()
+      ctx.setLineDash([])
+
+      // 绘制未建档标识
+      if (!hasAsset) {
+        ctx.fillStyle = '#F59E0B'
+        ctx.font = `${10 / globalScale}px Sans-Serif`
+        ctx.textAlign = 'center'
+        ctx.fillText('!', x, y + r + 12 / globalScale)
+      }
+
+      // 绘制标签
+      ctx.font = `${fontSize}px Sans-Serif`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillStyle = isSelected ? '#FFFFFF' : '#0F172A'
+      ctx.fillText(label, x, y)
+    },
+    [selectedNodeId],
+  )
+
+  // 自定义边渲染
+  const linkCanvasObject = useCallback(
+    (link: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+      const start = link.source as ForceGraphNode
+      const end = link.target as ForceGraphNode
+      if (!start?.x || !start?.y || !end?.x || !end?.y) return
+
+      const color = (link.color as string) || '#94A3B8'
+      const label = link.label as string
+      const isSelected = selectedNodeId && (start.id === selectedNodeId || end.id === selectedNodeId)
+      const opacity = selectedNodeId && !isSelected ? 0.2 : 1
+
+      // 绘制连线
+      ctx.beginPath()
+      ctx.moveTo(start.x, start.y)
+      ctx.lineTo(end.x, end.y)
+      ctx.strokeStyle = color
+      ctx.globalAlpha = opacity
+      ctx.lineWidth = (isSelected ? 2 : 1.5) / globalScale
+      ctx.stroke()
+
+      // 绘制箭头
+      const dx = end.x - start.x
+      const dy = end.y - start.y
+      const angle = Math.atan2(dy, dx)
+      const arrowLen = 8 / globalScale
+      const endR = ((end.val as number) || 8) / globalScale
+      const arrowX = end.x - Math.cos(angle) * endR
+      const arrowY = end.y - Math.sin(angle) * endR
+
+      ctx.beginPath()
+      ctx.moveTo(arrowX, arrowY)
+      ctx.lineTo(
+        arrowX - arrowLen * Math.cos(angle - Math.PI / 6),
+        arrowY - arrowLen * Math.sin(angle - Math.PI / 6),
+      )
+      ctx.lineTo(
+        arrowX - arrowLen * Math.cos(angle + Math.PI / 6),
+        arrowY - arrowLen * Math.sin(angle + Math.PI / 6),
+      )
+      ctx.closePath()
+      ctx.fillStyle = color
+      ctx.fill()
+
+      // 绘制标签
+      if (label && globalScale > 0.8) {
+        const midX = (start.x + end.x) / 2
+        const midY = (start.y + end.y) / 2
+        const fontSize = 10 / globalScale
+
+        ctx.font = `${fontSize}px Sans-Serif`
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+
+        // 背景
+        const textWidth = ctx.measureText(label).width
+        const padding = 4 / globalScale
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'
+        ctx.fillRect(
+          midX - textWidth / 2 - padding,
+          midY - fontSize / 2 - padding / 2,
+          textWidth + padding * 2,
+          fontSize + padding,
+        )
+
+        // 文字
+        ctx.fillStyle = '#475569'
+        ctx.fillText(label, midX, midY)
+      }
+
+      ctx.globalAlpha = 1
+    },
+    [selectedNodeId],
+  )
+
+  // 获取选中节点信息
+  const selectedNode = nodes.find((n) => n.id === selectedNodeId) || null
+  const selectedState = selectedNode?.data.state as CharacterState | undefined
+  const hasAsset = selectedNode?.data.hasAsset
+
+  // 相关关系
+  const relatedLinks = links.filter((l) => {
+    const sourceId = typeof l.source === 'string' ? l.source : l.source.id
+    const targetId = typeof l.target === 'string' ? l.target : l.target.id
+    return sourceId === selectedNodeId || targetId === selectedNodeId
+  })
 
   if (isLoading) {
     return (
@@ -167,7 +247,7 @@ export function RelationshipGraph({
             variant="ghost"
             size="sm"
             onClick={onClearSelection}
-            disabled={!selectedNode}
+            disabled={!selectedNodeId}
             title="清除选择"
           >
             <RotateCcw className="h-4 w-4" />
@@ -177,53 +257,21 @@ export function RelationshipGraph({
 
       {/* 图表容器 */}
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
-        <GraphErrorBoundary fallback={<GraphFallback />}>
-          <Suspense fallback={<GraphLoading />}>
-            <div className="h-[450px] overflow-hidden rounded-xl border border-border bg-[#FAFAFA]">
-              <GraphCanvas
-                nodes={nodes}
-                edges={edges}
-                theme={{
-                  ...lightTheme,
-                  node: {
-                    ...lightTheme.node,
-                    fill: '#FFFFFF',
-                    activeFill: '#F1F5F9',
-                    label: {
-                      ...lightTheme.node.label,
-                      color: '#0F172A',
-                      activeColor: '#0F172A',
-                    },
-                  },
-                  edge: {
-                    ...lightTheme.edge,
-                    fill: '#94A3B8',
-                    activeFill: '#0F172A',
-                    label: {
-                      ...lightTheme.edge.label,
-                      color: '#475569',
-                      activeColor: '#0F172A',
-                      fontSize: 11,
-                    },
-                  },
-                }}
-                layoutType="forceDirected2d"
-                layoutOverrides={{
-                  nodeStrength: -300,
-                  linkDistance: 150,
-                }}
-                selections={selectedNode ? [selectedNode.id] : []}
-                actives={highlightEdges.length > 0 ? [selectedNode?.id || ''] : []}
-                onNodeClick={onNodeClick}
-                draggable
-                animated
-                labelType="all"
-                minNodeSize={35}
-                maxNodeSize={50}
-              />
-            </div>
-          </Suspense>
-        </GraphErrorBoundary>
+        <div ref={containerRef} className="h-[450px] overflow-hidden rounded-xl border border-border bg-[#FAFAFA]">
+          <ForceGraph2D
+            ref={graphRef}
+            graphData={{ nodes, links }}
+            width={containerRef.current?.clientWidth || 800}
+            height={450}
+            backgroundColor="#FAFAFA"
+            nodeCanvasObject={nodeCanvasObject}
+            linkCanvasObject={linkCanvasObject}
+            onNodeClick={(node) => onNodeClick(node as ForceGraphNode)}
+            cooldownTicks={100}
+            nodeRelSize={4}
+            enablePointerInteraction={true}
+          />
+        </div>
 
         {/* 侧边信息面板 */}
         <div className="space-y-4">
@@ -239,7 +287,7 @@ export function RelationshipGraph({
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-foreground">关系边</span>
-                <Badge variant="default">{edges.length} 条</Badge>
+                <Badge variant="default">{links.length} 条</Badge>
               </div>
             </div>
           </div>
@@ -253,7 +301,7 @@ export function RelationshipGraph({
               <div className="mt-3 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-base font-medium text-foreground">
-                    {selectedNode.label}
+                    {selectedNode.name}
                   </span>
                   <Badge variant={hasAsset ? 'success' : 'warning'}>
                     {hasAsset ? '已建档' : '未建档'}
@@ -282,39 +330,31 @@ export function RelationshipGraph({
                 )}
 
                 {/* 相关关系 */}
-                {edges.filter(
-                  (e) =>
-                    e.source === selectedNode.id ||
-                    e.target === selectedNode.id,
-                ).length > 0 && (
+                {relatedLinks.length > 0 && (
                   <div className="space-y-1">
                     <p className="text-[11px] text-muted-foreground">
                       相关关系
                     </p>
                     <div className="flex flex-wrap gap-1.5">
-                      {edges
-                        .filter(
-                          (e) =>
-                            e.source === selectedNode.id ||
-                            e.target === selectedNode.id,
-                        )
-                        .map((edge) => (
+                      {relatedLinks.map((link, idx) => {
+                        const sourceId = typeof link.source === 'string' ? link.source : link.source.id
+                        const targetId = typeof link.target === 'string' ? link.target : link.target.id
+                        return (
                           <Badge
-                            key={edge.id}
+                            key={`${sourceId}-${targetId}-${idx}`}
                             variant="default"
                             className="gap-1"
                           >
                             <div
                               className="h-1.5 w-1.5 rounded-full"
-                              style={{ backgroundColor: edge.data?.color }}
+                              style={{ backgroundColor: link.color }}
                             />
-                            {edge.source === selectedNode.id
-                              ? edge.target
-                              : edge.source}
+                            {sourceId === selectedNodeId ? targetId : sourceId}
                             <span className="text-muted-foreground">·</span>
-                            {edge.label}
+                            {link.label}
                           </Badge>
-                        ))}
+                        )
+                      })}
                     </div>
                   </div>
                 )}

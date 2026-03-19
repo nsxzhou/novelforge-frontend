@@ -1,5 +1,4 @@
-import { useMemo, useState, useCallback } from 'react'
-import type { GraphNode, GraphEdge } from 'reagraph'
+import { useMemo, useState, useCallback, useRef } from 'react'
 import type {
   CharacterState,
   RelationType,
@@ -13,22 +12,40 @@ interface ParsedRelation {
   description?: string
 }
 
+export interface ForceGraphNode {
+  id: string
+  name: string
+  color: string
+  val: number
+  data: { state?: CharacterState; hasState: boolean; hasAsset: boolean }
+  x?: number
+  y?: number
+}
+
+export interface ForceGraphLink {
+  source: string | ForceGraphNode
+  target: string | ForceGraphNode
+  label: string
+  color: string
+  data: { relation: ParsedRelation }
+}
+
 interface UseGraphDataParams {
   scopedStates: CharacterState[]
   knownCharacterNames: Set<string>
 }
 
 interface UseGraphDataResult {
-  nodes: GraphNode[]
-  edges: GraphEdge[]
-  selectedNode: GraphNode | null
-  onNodeClick: (node: GraphNode) => void
+  nodes: ForceGraphNode[]
+  links: ForceGraphLink[]
+  selectedNodeId: string | null
+  onNodeClick: (node: ForceGraphNode) => void
   onClearSelection: () => void
   searchQuery: string
   setSearchQuery: (query: string) => void
   filterTypes: Set<RelationType>
   setFilterTypes: (types: Set<RelationType> | ((prev: Set<RelationType>) => Set<RelationType>)) => void
-  highlightEdges: string[]
+  graphRef: React.MutableRefObject<any>
 }
 
 // 解析关系数据（兼容新旧格式）
@@ -81,9 +98,10 @@ export function useGraphData({
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [filterTypes, setFilterTypes] = useState<Set<RelationType>>(new Set())
+  const graphRef = useRef<any>(null)
 
   // 生成图数据
-  const { nodes, edges } = useMemo(() => {
+  const { nodes, links } = useMemo(() => {
     // 收集所有角色名称
     const stateNames = new Set(scopedStates.map((s) => s.character_name))
     const relatedNames = new Set(
@@ -106,41 +124,41 @@ export function useGraphData({
     const stateByName = new Map(
       scopedStates.map((s) => [s.character_name, s]),
     )
-    const nodes: GraphNode[] = filteredNames.map((name) => {
+    const nodes: ForceGraphNode[] = filteredNames.map((name) => {
       const state = stateByName.get(name)
       const hasState = Boolean(state)
       const hasAsset = knownCharacterNames.has(name)
 
       return {
         id: name,
-        label: name,
+        name,
+        color: hasState ? '#FFFFFF' : '#F8FAFC',
+        val: hasState ? 8 : 4,
         data: { state, hasState, hasAsset },
-        fill: hasState ? '#FFFFFF' : '#F8FAFC',
       }
     })
 
     // 生成边
-    const edges: GraphEdge[] = scopedStates.flatMap((state) =>
+    const links: ForceGraphLink[] = scopedStates.flatMap((state) =>
       parseRelations(state.relationships)
         .filter((r) => filterTypes.size === 0 || filterTypes.has(r.type))
-        .map((relation, idx) => {
+        .map((relation) => {
           const color = getRelationColor(relation.type)
           return {
-            id: `${state.id}-${relation.target}-${idx}`,
             source: state.character_name,
             target: relation.target,
             label: getRelationLabel(relation),
-            data: { relation, color },
-            fill: color,
+            color,
+            data: { relation },
           }
         }),
     )
 
-    return { nodes, edges }
+    return { nodes, links }
   }, [scopedStates, knownCharacterNames, searchQuery, filterTypes])
 
   // 节点点击处理
-  const onNodeClick = useCallback((node: GraphNode) => {
+  const onNodeClick = useCallback((node: ForceGraphNode) => {
     setSelectedNodeId((prev) => (prev === node.id ? null : node.id))
   }, [])
 
@@ -149,30 +167,16 @@ export function useGraphData({
     setSelectedNodeId(null)
   }, [])
 
-  // 选中的节点数据
-  const selectedNode = useMemo(() => {
-    if (!selectedNodeId) return null
-    return nodes.find((n) => n.id === selectedNodeId) || null
-  }, [nodes, selectedNodeId])
-
-  // 高亮的边（与选中节点相关）
-  const highlightEdges = useMemo(() => {
-    if (!selectedNodeId) return []
-    return edges
-      .filter((e) => e.source === selectedNodeId || e.target === selectedNodeId)
-      .map((e) => e.id)
-  }, [edges, selectedNodeId])
-
   return {
     nodes,
-    edges,
-    selectedNode,
+    links,
+    selectedNodeId,
     onNodeClick,
     onClearSelection,
     searchQuery,
     setSearchQuery,
     filterTypes,
     setFilterTypes,
-    highlightEdges,
+    graphRef,
   }
 }
