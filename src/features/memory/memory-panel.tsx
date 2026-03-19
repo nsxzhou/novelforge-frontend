@@ -1,16 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Background,
-  Controls,
-  MarkerType,
-  MiniMap,
-  ReactFlow,
-  type Edge,
-  type Node,
-} from '@xyflow/react'
-import '@xyflow/react/dist/style.css'
-import {
   ArrowRight,
   BookOpen,
   CalendarRange,
@@ -43,10 +33,11 @@ import {
 } from '@/shared/api/timeline'
 import type {
   Asset,
-  CharacterRelationship,
+  CharacterRelation,
   CharacterState,
   TimelineEvent,
 } from '@/shared/api/types'
+import { getRelationLabel } from '@/shared/api/types'
 import { parseStructuredContent } from '@/features/assets/schemas/asset-content'
 import { getErrorMessage } from '@/shared/lib/error-message'
 import { formatDate, formatRelativeTime } from '@/shared/lib/format'
@@ -60,10 +51,11 @@ import { FormField, Input, Select, Textarea } from '@/shared/ui/input'
 import { SectionTitle } from '@/shared/ui/section-title'
 import { Tabs } from '@/shared/ui/tabs'
 import { useToast } from '@/shared/ui/toast'
+import { RelationshipGraph, RelationEditor } from './graph'
 
 type MemoryScope = 'latest' | 'chapter'
 type MemoryWorkspaceView = 'states' | 'timeline' | 'graph'
-type RelationshipDraft = CharacterRelationship
+type RelationshipDraft = CharacterRelation
 
 type CharacterStateDraft = {
   character_name: string
@@ -79,12 +71,20 @@ type TimelineEventDraft = {
 }
 
 function normalizeRelationships(value: RelationshipDraft[]): RelationshipDraft[] {
-  return value.flatMap((item) => {
+  const result: RelationshipDraft[] = []
+  for (const item of value) {
     const target = item.target.trim()
-    const relation = item.relation.trim()
-    if (!target || !relation) return []
-    return [{ target, relation }]
-  })
+    if (!target) continue
+    // 确保 type 有值
+    const type = item.type || 'custom'
+    // 如果是 custom 类型，确保 custom_label 有值
+    if (type === 'custom' && !item.custom_label?.trim()) {
+      result.push({ target, type, custom_label: '关联' })
+    } else {
+      result.push({ target, type, custom_label: item.custom_label, description: item.description })
+    }
+  }
+  return result
 }
 
 function parseRelationships(value: string): RelationshipDraft[] {
@@ -94,13 +94,35 @@ function parseRelationships(value: string): RelationshipDraft[] {
     const parsed = JSON.parse(value) as unknown
     if (!Array.isArray(parsed)) return []
 
-    return normalizeRelationships(parsed.flatMap((item) => {
-      if (!item || typeof item !== 'object') return []
-      return [{
-        target: String((item as Record<string, unknown>).target ?? ''),
-        relation: String((item as Record<string, unknown>).relation ?? ''),
-      }]
-    }))
+    const items: RelationshipDraft[] = []
+    for (const item of parsed) {
+      if (!item || typeof item !== 'object') continue
+      const obj = item as Record<string, unknown>
+      const target = String(obj.target ?? '').trim()
+      if (!target) continue
+
+      // 新格式：有 type 字段
+      if (obj.type) {
+        items.push({
+          target,
+          type: obj.type as RelationshipDraft['type'],
+          custom_label: obj.custom_label ? String(obj.custom_label) : undefined,
+          description: obj.description ? String(obj.description) : undefined,
+        })
+        continue
+      }
+
+      // 旧格式兼容：relation 字段
+      if (obj.relation) {
+        items.push({
+          target,
+          type: 'custom' as const,
+          custom_label: String(obj.relation),
+        })
+      }
+    }
+
+    return normalizeRelationships(items)
   } catch {
     return []
   }
@@ -423,84 +445,9 @@ export function MemoryPanel({
     onError: (error) => toast(getErrorMessage(error), 'error'),
   })
 
-  const flowData = useMemo(() => {
-    const stateNames = new Set(scopedStates.map((state) => state.character_name))
-    const relatedNames = new Set(
-      scopedStates.flatMap((state) => parseRelationships(state.relationships).map((relation) => relation.target)),
-    )
-    const names = new Set([
-      ...knownCharacterNames,
-      ...stateNames,
-      ...relatedNames,
-    ])
-
-    const orderedNames = Array.from(names).sort((a, b) => a.localeCompare(b, 'zh-CN'))
-    const stateByName = new Map(scopedStates.map((state) => [state.character_name, state]))
-    const columns = Math.max(1, Math.ceil(Math.sqrt(Math.max(orderedNames.length, 1))))
-
-    const nodes: Node[] = orderedNames.map((name, index) => {
-      const state = stateByName.get(name)
-      const row = Math.floor(index / columns)
-      const column = index % columns
-      const hasState = Boolean(state)
-
-      return {
-        id: name,
-        position: { x: column * 240, y: row * 150 },
-        data: {
-          label: (
-            <div className="space-y-1">
-              <div className="text-sm font-medium text-foreground">{name}</div>
-              <div className="text-[11px] text-muted-foreground">
-                {hasState ? (state?.location || '位置未记录') : '仅设定角色'}
-              </div>
-              <div className="text-[11px] text-muted-foreground">
-                {hasState ? (state?.emotional_state || '情绪未记录') : '暂无状态'}
-              </div>
-            </div>
-          ),
-        },
-        draggable: false,
-        selectable: false,
-        style: {
-          width: 190,
-          borderRadius: 16,
-          border: hasState ? '1px solid #CBD5E1' : '1px dashed #CBD5E1',
-          background: hasState ? '#FFFFFF' : '#F8FAFC',
-          color: '#0F172A',
-          padding: 14,
-          boxShadow: 'none',
-        },
-      }
-    })
-
-    const edges: Edge[] = scopedStates.flatMap((state, stateIndex) =>
-      parseRelationships(state.relationships).map((relation, relationIndex) => ({
-        id: `${state.id}-${relation.target}-${relationIndex}`,
-        source: state.character_name,
-        target: relation.target,
-        label: relation.relation,
-        animated: false,
-        style: { stroke: '#94A3B8', strokeWidth: 1.5 },
-        labelStyle: {
-          fill: '#475569',
-          fontSize: 11,
-          fontWeight: 500,
-        },
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          color: stateIndex % 2 === 0 ? '#94A3B8' : '#64748B',
-        },
-      })),
-    )
-
-    return { nodes, edges }
-  }, [knownCharacterNames, scopedStates])
-
   const stateLatestUpdate = getLatestUpdatedAt(scopedStates)
   const overallLatestStateUpdate = getLatestUpdatedAt(latestStatesQuery.data ?? [])
   const timelineLatestUpdate = getLatestUpdatedAt(sortedTimelineEvents)
-  const missingStateCount = Array.from(knownCharacterNames).filter((name) => !scopedStates.some((state) => state.character_name === name)).length
 
   const metadataMessages = [
     chaptersQuery.error ? getErrorMessage(chaptersQuery.error) : null,
@@ -613,12 +560,12 @@ export function MemoryPanel({
           />
         </div>
 
-        <Tabs
-          tabs={[
-            { key: 'states', label: '角色状态', icon: <Users className="h-3.5 w-3.5" />, count: scopedStates.length },
-            { key: 'timeline', label: '故事时间线', icon: <CalendarRange className="h-3.5 w-3.5" />, count: sortedTimelineEvents.length },
-            { key: 'graph', label: '关系概览', icon: <GitBranch className="h-3.5 w-3.5" />, count: flowData.edges.length },
-          ]}
+          <Tabs
+            tabs={[
+              { key: 'states', label: '角色状态', icon: <Users className="h-3.5 w-3.5" />, count: scopedStates.length },
+              { key: 'timeline', label: '故事时间线', icon: <CalendarRange className="h-3.5 w-3.5" />, count: sortedTimelineEvents.length },
+              { key: 'graph', label: '关系概览', icon: <GitBranch className="h-3.5 w-3.5" /> },
+            ]}
           activeKey={workspaceView}
           onChange={(next) => setWorkspaceView(next as MemoryWorkspaceView)}
         />
@@ -851,59 +798,19 @@ export function MemoryPanel({
 
                       <FormField
                         label="角色关系"
-                        description="以结构化条目编辑，保存时会自动回写为兼容后端的 JSON 数组。空条目会被忽略。"
+                        description="选择关系类型和目标角色，支持预定义关系（盟友/敌对等）和自定义关系。空条目会被忽略。"
                       >
-                        <div className="space-y-3 rounded-xl border border-border bg-[#F8FAFC] p-4">
-                          {stateDraft.relationships.length === 0 ? (
-                            <p className="text-sm text-muted-foreground">暂无关系条目，点击下方按钮补充。</p>
-                          ) : (
-                            stateDraft.relationships.map((relationship, index) => (
-                              <div key={`${relationship.target}-${index}`} className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
-                                <Input
-                                  value={relationship.target}
-                                  onChange={(event) => {
-                                    const next = [...stateDraft.relationships]
-                                    next[index] = { ...relationship, target: event.target.value }
-                                    setStateDraft({ ...stateDraft, relationships: next })
-                                  }}
-                                  placeholder="对方角色"
-                                />
-                                <Input
-                                  value={relationship.relation}
-                                  onChange={(event) => {
-                                    const next = [...stateDraft.relationships]
-                                    next[index] = { ...relationship, relation: event.target.value }
-                                    setStateDraft({ ...stateDraft, relationships: next })
-                                  }}
-                                  placeholder="关系描述"
-                                />
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => setStateDraft({
-                                    ...stateDraft,
-                                    relationships: stateDraft.relationships.filter((_, relationshipIndex) => relationshipIndex !== index),
-                                  })}
-                                  leftIcon={<X className="h-3.5 w-3.5" />}
-                                >
-                                  删除
-                                </Button>
-                              </div>
-                            ))
-                          )}
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setStateDraft({
+                        <div className="rounded-xl border border-border bg-[#F8FAFC] p-4">
+                          <RelationEditor
+                            relations={stateDraft.relationships}
+                            onChange={(relations) => setStateDraft({
                               ...stateDraft,
-                              relationships: [...stateDraft.relationships, { target: '', relation: '' }],
+                              relationships: relations,
                             })}
-                            leftIcon={<Plus className="h-3.5 w-3.5" />}
-                          >
-                            添加关系
-                          </Button>
+                            availableTargets={Array.from(knownCharacterNames).filter(
+                              (name) => name !== stateDraft.character_name,
+                            )}
+                          />
                         </div>
                       </FormField>
 
@@ -964,7 +871,7 @@ export function MemoryPanel({
                           <div className="mt-3 flex flex-wrap gap-2">
                             {parseRelationships(selectedState.relationships).map((relationship, index) => (
                               <Badge key={`${relationship.target}-${index}`} variant="default">
-                                {relationship.target} · {relationship.relation}
+                                {relationship.target} · {getRelationLabel(relationship)}
                               </Badge>
                             ))}
                           </div>
@@ -1300,66 +1207,22 @@ export function MemoryPanel({
             <div>
               <h3 className="text-lg font-medium tracking-tight text-foreground">关系概览</h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                图谱现在作为总览辅助使用，帮助快速识别缺失状态、关系边和角色设定覆盖情况。
+                力导向图展示角色之间的关系网络，支持拖拽布局、悬停高亮和点击聚焦。
               </p>
             </div>
             <Badge icon={<GitBranch className="h-3 w-3" />} variant="default" className="shrink-0">
-              {flowData.edges.length} 条关系边
+              {scopedStates.reduce((sum, s) => sum + parseRelationships(s.relationships).length, 0)} 条关系边
             </Badge>
           </div>
 
           {activeStateQuery.error ? (
             <ErrorState text={getErrorMessage(activeStateQuery.error)} className="flex w-full" />
-          ) : showStatesLoading ? (
-            <LoadingState text="加载关系概览中..." className="flex w-full" />
-          ) : flowData.nodes.length === 0 ? (
-            <EmptyState
-              icon={<GitBranch className="h-5 w-5" />}
-              title="暂无可视化数据"
-              description="先在角色状态视图中沉淀角色与关系后，再回到这里检查整体连通性。"
-              className="py-10"
-            />
           ) : (
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
-              <div className="memory-flow h-[420px] overflow-hidden rounded-xl border border-border bg-[#F8FAFC]">
-                <ReactFlow
-                  nodes={flowData.nodes}
-                  edges={flowData.edges}
-                  fitView
-                  nodesDraggable={false}
-                  nodesConnectable={false}
-                  elementsSelectable={false}
-                  panOnScroll
-                  minZoom={0.5}
-                >
-                  <MiniMap pannable zoomable nodeStrokeWidth={2} maskColor="rgba(241, 245, 249, 0.72)" />
-                  <Controls showInteractive={false} />
-                  <Background gap={18} size={1} color="#E2E8F0" />
-                </ReactFlow>
-              </div>
-
-              <div className="space-y-3">
-                <MemoryMetricCard
-                  label="节点覆盖"
-                  value={`${flowData.nodes.length} 个角色节点`}
-                  description="包含角色设定中的人物、已沉淀状态的人物，以及关系中提到但尚未建档的人物。"
-                />
-                <MemoryMetricCard
-                  label="关系缺口"
-                  value={`${missingStateCount} 个已建档角色暂无状态`}
-                  description="如果图中存在虚线节点，通常表示只有角色设定而没有最新状态，可回到章节继续补全。"
-                  badge={<Badge variant={missingStateCount > 0 ? 'warning' : 'success'}>{missingStateCount > 0 ? '待补全' : '已覆盖'}</Badge>}
-                />
-                <div className="rounded-xl border border-border bg-white p-4">
-                  <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">阅读提示</p>
-                  <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-                    <li>实线框：已有状态记录的角色。</li>
-                    <li>虚线框：只有角色设定或关系引用，尚未沉淀状态。</li>
-                    <li>箭头标签：当前范围内解析出的角色关系。</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
+            <RelationshipGraph
+              scopedStates={scopedStates}
+              knownCharacterNames={knownCharacterNames}
+              isLoading={showStatesLoading}
+            />
           )}
         </Card>
       ) : null}

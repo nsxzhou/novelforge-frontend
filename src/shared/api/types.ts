@@ -43,18 +43,18 @@ export type WorldbuildingSeed = {
   notes?: string
 }
 
-export type OutlineVolumeSeed = {
+export type OutlineChapterSeed = {
   title: string
   summary?: string
   key_events?: string[]
 }
 
 export type OutlineSeed = {
-  _schema: 'outline_v1'
+  _schema: 'outline_v2'
   premise?: string
   themes?: string[]
   central_conflict?: string
-  volumes?: OutlineVolumeSeed[]
+  chapters?: OutlineChapterSeed[]
   ending?: string
   notes?: string
 }
@@ -98,9 +98,59 @@ export type Chapter = {
   updated_at: string
 }
 
+// 关系类型枚举
+export type RelationType =
+  | 'ally'      // 盟友
+  | 'enemy'     // 敌对
+  | 'family'    // 亲属
+  | 'mentor'    // 师徒
+  | 'friend'    // 朋友
+  | 'rival'     // 对手
+  | 'custom'    // 自定义
+
+// 关系类型配置
+export interface RelationTypeConfig {
+  value: RelationType
+  label: string
+  color: string
+}
+
+// 结构化关系（新格式）
+export interface CharacterRelation {
+  target: string
+  type: RelationType
+  custom_label?: string
+  description?: string
+}
+
+// 旧格式兼容
 export type CharacterRelationship = {
   target: string
   relation: string
+}
+
+// 默认关系类型配置
+export const RELATION_TYPES: RelationTypeConfig[] = [
+  { value: 'ally', label: '盟友', color: '#10B981' },
+  { value: 'enemy', label: '敌对', color: '#EF4444' },
+  { value: 'family', label: '亲属', color: '#3B82F6' },
+  { value: 'mentor', label: '师徒', color: '#F59E0B' },
+  { value: 'friend', label: '朋友', color: '#8B5CF6' },
+  { value: 'rival', label: '对手', color: '#EC4899' },
+  { value: 'custom', label: '自定义', color: '#6B7280' },
+]
+
+// 获取关系显示标签
+export function getRelationLabel(relation: CharacterRelation): string {
+  if (relation.type === 'custom') {
+    return relation.custom_label || '自定义'
+  }
+  return RELATION_TYPES.find((t) => t.value === relation.type)?.label || relation.type
+}
+
+// 获取关系颜色
+export function getRelationColor(type: RelationType): string {
+  return RELATION_TYPES.find((t) => t.value === type)?.color || '#6B7280'
 }
 
 export type CharacterState = {
