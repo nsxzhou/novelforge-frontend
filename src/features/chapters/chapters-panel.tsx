@@ -133,6 +133,7 @@ export function ChaptersPanel({
 
   const refreshChapters = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: queryKeys.chapters(projectId) })
+    await queryClient.invalidateQueries({ queryKey: queryKeys.chaptersAll(projectId) })
     if (selectedChapterId) {
       await queryClient.invalidateQueries({ queryKey: queryKeys.chapter(selectedChapterId) })
     }

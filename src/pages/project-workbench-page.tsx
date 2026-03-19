@@ -279,8 +279,6 @@ export function ProjectWorkbenchPage() {
         return (
           <MemoryPanel
             projectId={project.id}
-            chapters={chapters}
-            assets={assets}
             activeChapterId={selectedChapterId}
             onOpenChapter={openChapterWorkbench}
           />

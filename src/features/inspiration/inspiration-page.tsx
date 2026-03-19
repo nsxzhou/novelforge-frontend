@@ -57,6 +57,8 @@ export function InspirationPage() {
       await queryClient.invalidateQueries({ queryKey: queryKeys.projects })
       await queryClient.invalidateQueries({ queryKey: queryKeys.project(project.id) })
       await queryClient.invalidateQueries({ queryKey: queryKeys.assets(project.id, 'all') })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.assetsAll(project.id, 'all') })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.assetsAll(project.id, 'character') })
       navigate(`/projects/${project.id}?tab=assets`)
     },
     onError: (error) => {

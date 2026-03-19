@@ -24,6 +24,24 @@ export function listChapters(projectId: string, limit = 20, offset = 0): Promise
   ).then((r) => r.chapters)
 }
 
+export async function listAllChapters(projectId: string, pageSize = 100): Promise<Chapter[]> {
+  const chapters: Chapter[] = []
+  let offset = 0
+
+  while (true) {
+    const page = await listChapters(projectId, pageSize, offset)
+    chapters.push(...page)
+
+    if (page.length < pageSize) {
+      break
+    }
+
+    offset += pageSize
+  }
+
+  return chapters
+}
+
 export function getChapter(chapterId: string): Promise<Chapter> {
   return request<Chapter>(`/chapters/${chapterId}`)
 }

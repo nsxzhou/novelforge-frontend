@@ -112,6 +112,8 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
   const refreshAssets = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: queryKeys.assets(projectId, filterType) })
     await queryClient.invalidateQueries({ queryKey: queryKeys.assets(projectId, 'all') })
+    await queryClient.invalidateQueries({ queryKey: queryKeys.assetsAll(projectId, 'all') })
+    await queryClient.invalidateQueries({ queryKey: queryKeys.assetsAll(projectId, 'character') })
   }, [queryClient, projectId, filterType])
 
   const createMutation = useMutation({

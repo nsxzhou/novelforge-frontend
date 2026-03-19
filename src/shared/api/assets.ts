@@ -34,6 +34,35 @@ export async function listAssets(params: {
   return result.assets
 }
 
+export async function listAllAssets(params: {
+  projectId: string
+  type?: AssetType
+  pageSize?: number
+}): Promise<Asset[]> {
+  const pageSize = params.pageSize ?? 100
+  const assets: Asset[] = []
+  let offset = 0
+
+  while (true) {
+    const page = await listAssets({
+      projectId: params.projectId,
+      type: params.type,
+      limit: pageSize,
+      offset,
+    })
+
+    assets.push(...page)
+
+    if (page.length < pageSize) {
+      break
+    }
+
+    offset += pageSize
+  }
+
+  return assets
+}
+
 export function createAsset(projectId: string, input: UpsertAssetInput): Promise<Asset> {
   return request<Asset>(`/projects/${projectId}/assets`, {
     method: 'POST',
