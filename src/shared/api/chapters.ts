@@ -1,5 +1,5 @@
 import { request } from '@/shared/api/http-client'
-import { parseJsonWithSchema, streamRequest, type SSECallbacks } from '@/shared/api/sse-client'
+import { streamRequestWithSchema, type SSECallbacks } from '@/shared/api/sse-client'
 import type { Chapter, GenerationRecord } from '@/shared/api/types'
 import { chapterGenerationResponseSchema, suggestResponseSchema } from '@/shared/api/runtime-schemas'
 
@@ -46,36 +46,6 @@ export function getChapter(chapterId: string): Promise<Chapter> {
   return request<Chapter>(`/chapters/${chapterId}`)
 }
 
-export function createChapter(
-  projectId: string,
-  input: CreateChapterInput,
-): Promise<ChapterGenerationResponse> {
-  return request<ChapterGenerationResponse>(`/projects/${projectId}/chapters`, {
-    method: 'POST',
-    body: input,
-  })
-}
-
-export function continueChapter(
-  chapterId: string,
-  input: ContinueChapterInput,
-): Promise<ChapterGenerationResponse> {
-  return request<ChapterGenerationResponse>(`/chapters/${chapterId}/continue`, {
-    method: 'POST',
-    body: input,
-  })
-}
-
-export function rewriteChapter(
-  chapterId: string,
-  input: RewriteChapterInput,
-): Promise<ChapterGenerationResponse> {
-  return request<ChapterGenerationResponse>(`/chapters/${chapterId}/rewrite`, {
-    method: 'POST',
-    body: input,
-  })
-}
-
 export function confirmChapter(chapterId: string): Promise<Chapter> {
   return request<Chapter>(`/chapters/${chapterId}/confirm`, {
     method: 'POST',
@@ -94,9 +64,14 @@ export function createChapterStream(
   callbacks: SSECallbacks<ChapterGenerationResponse>,
   signal?: AbortSignal,
 ): void {
-  streamRequest(`/projects/${projectId}/chapters/stream`, input, callbacks, signal, {
-    parseDone: (rawData) => parseJsonWithSchema(rawData, chapterGenerationResponseSchema, 'chapter generation result'),
-  })
+  streamRequestWithSchema(
+    `/projects/${projectId}/chapters/stream`,
+    input,
+    callbacks,
+    chapterGenerationResponseSchema,
+    'chapter generation result',
+    signal,
+  )
 }
 
 export function continueChapterStream(
@@ -105,9 +80,14 @@ export function continueChapterStream(
   callbacks: SSECallbacks<ChapterGenerationResponse>,
   signal?: AbortSignal,
 ): void {
-  streamRequest(`/chapters/${chapterId}/continue/stream`, input, callbacks, signal, {
-    parseDone: (rawData) => parseJsonWithSchema(rawData, chapterGenerationResponseSchema, 'chapter continuation result'),
-  })
+  streamRequestWithSchema(
+    `/chapters/${chapterId}/continue/stream`,
+    input,
+    callbacks,
+    chapterGenerationResponseSchema,
+    'chapter continuation result',
+    signal,
+  )
 }
 
 export function rewriteChapterStream(
@@ -116,9 +96,14 @@ export function rewriteChapterStream(
   callbacks: SSECallbacks<ChapterGenerationResponse>,
   signal?: AbortSignal,
 ): void {
-  streamRequest(`/chapters/${chapterId}/rewrite/stream`, input, callbacks, signal, {
-    parseDone: (rawData) => parseJsonWithSchema(rawData, chapterGenerationResponseSchema, 'chapter rewrite result'),
-  })
+  streamRequestWithSchema(
+    `/chapters/${chapterId}/rewrite/stream`,
+    input,
+    callbacks,
+    chapterGenerationResponseSchema,
+    'chapter rewrite result',
+    signal,
+  )
 }
 
 export type SuggestChapterInput = { content_before_cursor: string }
@@ -130,9 +115,14 @@ export function suggestChapterStream(
   callbacks: SSECallbacks<SuggestResponse>,
   signal?: AbortSignal,
 ): void {
-  streamRequest(`/chapters/${chapterId}/suggest/stream`, input, callbacks, signal, {
-    parseDone: (rawData) => parseJsonWithSchema(rawData, suggestResponseSchema, 'chapter suggestion result'),
-  })
+  streamRequestWithSchema(
+    `/chapters/${chapterId}/suggest/stream`,
+    input,
+    callbacks,
+    suggestResponseSchema,
+    'chapter suggestion result',
+    signal,
+  )
 }
 
 export type UpdateChapterInput = {

@@ -11,8 +11,8 @@ import {
   type GuidedCreateInput,
   type GuidedProjectInput,
 } from '@/shared/api/projects'
+import { invalidateProjectAssets, invalidateProjectOverview } from '@/shared/api/query-invalidation'
 import type { GuidedProjectCandidate } from '@/shared/api/types'
-import { queryKeys } from '@/shared/api/queries'
 import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
 import { ErrorState } from '@/shared/ui/feedback'
@@ -54,11 +54,8 @@ export function InspirationPage() {
   const guidedCreateMutation = useMutation({
     mutationFn: (input: GuidedCreateInput) => createGuidedProject(input),
     onSuccess: async ({ project }) => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.projects })
-      await queryClient.invalidateQueries({ queryKey: queryKeys.project(project.id) })
-      await queryClient.invalidateQueries({ queryKey: queryKeys.assets(project.id, 'all') })
-      await queryClient.invalidateQueries({ queryKey: queryKeys.assetsAll(project.id, 'all') })
-      await queryClient.invalidateQueries({ queryKey: queryKeys.assetsAll(project.id, 'character') })
+      await invalidateProjectOverview(queryClient, project.id)
+      await invalidateProjectAssets(queryClient, project.id)
       navigate(`/projects/${project.id}?tab=assets`)
     },
     onError: (error) => {
@@ -69,8 +66,7 @@ export function InspirationPage() {
   const manualCreateMutation = useMutation({
     mutationFn: createProject,
     onSuccess: async (project) => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.projects })
-      await queryClient.invalidateQueries({ queryKey: queryKeys.project(project.id) })
+      await invalidateProjectOverview(queryClient, project.id)
       navigate(`/projects/${project.id}`)
     },
     onError: (error) => {

@@ -1,7 +1,7 @@
 import { z } from 'zod'
+import { characterSeedSchema } from '@/shared/api/contract-defs'
 
-export const characterSchema = z.object({
-  _schema: z.literal('character_v1'),
+export const characterSchema = characterSeedSchema.extend({
   name: z.string().min(1, '姓名必填'),
   age: z.string().optional().default(''),
   gender: z.string().optional().default(''),

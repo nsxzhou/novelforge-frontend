@@ -9,14 +9,14 @@ import type { SSECallbacks } from '@/shared/api/sse-client'
 import type { AssetGenerationResponse } from '@/shared/api/assets'
 import type { Asset } from '@/shared/api/types'
 
-const listAssetsMock = vi.fn()
+const listAllAssetsMock = vi.fn()
 const createAssetMock = vi.fn()
 const updateAssetMock = vi.fn()
 const deleteAssetMock = vi.fn()
 const generateAssetStreamMock = vi.fn()
 
 vi.mock('@/shared/api/assets', () => ({
-  listAssets: (...args: unknown[]) => listAssetsMock(...args),
+  listAllAssets: (...args: unknown[]) => listAllAssetsMock(...args),
   createAsset: (...args: unknown[]) => createAssetMock(...args),
   updateAsset: (...args: unknown[]) => updateAssetMock(...args),
   deleteAsset: (...args: unknown[]) => deleteAssetMock(...args),
@@ -49,7 +49,7 @@ describe('AssetsPanel', () => {
     assets = []
     streamCallbacks = null
 
-    listAssetsMock.mockImplementation(() => Promise.resolve([...assets]))
+    listAllAssetsMock.mockImplementation(() => Promise.resolve([...assets]))
     createAssetMock.mockResolvedValue(undefined)
     updateAssetMock.mockResolvedValue(undefined)
     deleteAssetMock.mockResolvedValue(undefined)

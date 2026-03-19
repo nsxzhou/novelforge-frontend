@@ -5,9 +5,10 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Bot, FilePenLine, Square, Trash2, Plus, Filter, Boxes, Clock } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { createAsset, deleteAsset, generateAssetStream, listAssets, updateAsset } from '@/shared/api/assets'
+import { createAsset, deleteAsset, generateAssetStream, listAllAssets, updateAsset } from '@/shared/api/assets'
 import type { AssetGenerationResponse } from '@/shared/api/assets'
 import { queryKeys } from '@/shared/api/queries'
+import { invalidateProjectAssets } from '@/shared/api/query-invalidation'
 import type { Asset, AssetType } from '@/shared/api/types'
 import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
@@ -68,15 +69,19 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
   const abortRef = useRef<AbortController | null>(null)
   const queryClient = useQueryClient()
   const { toast } = useToast()
+  const assetsQueryKey = filterType === 'all'
+    ? queryKeys.assetsAll(projectId, 'all')
+    : queryKeys.assets(projectId, filterType)
 
   const assetsQuery = useQuery({
-    queryKey: queryKeys.assets(projectId, filterType),
-    queryFn: () => listAssets({ projectId, type: filterType === 'all' ? undefined : filterType, limit: 100, offset: 0 }),
+    queryKey: assetsQueryKey,
+    queryFn: () => listAllAssets({ projectId, type: filterType === 'all' ? undefined : filterType }),
   })
 
   const allAssetsQuery = useQuery({
     queryKey: queryKeys.assetsAll(projectId, 'all'),
-    queryFn: () => listAssets({ projectId, limit: 100, offset: 0 }),
+    queryFn: () => listAllAssets({ projectId }),
+    enabled: filterType !== 'all',
   })
 
   const assetForm = useForm<AssetFormValue>({ resolver: zodResolver(assetSchema), defaultValues: defaultAssetValue })
@@ -140,11 +145,8 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
   }
 
   const refreshAssets = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: queryKeys.assets(projectId, filterType) })
-    await queryClient.invalidateQueries({ queryKey: queryKeys.assets(projectId, 'all') })
-    await queryClient.invalidateQueries({ queryKey: queryKeys.assetsAll(projectId, 'all') })
-    await queryClient.invalidateQueries({ queryKey: queryKeys.assetsAll(projectId, 'character') })
-  }, [queryClient, projectId, filterType])
+    await invalidateProjectAssets(queryClient, projectId, [assetsQueryKey])
+  }, [assetsQueryKey, projectId, queryClient])
 
   const createMutation = useMutation({
     mutationFn: createAsset.bind(null, projectId),
@@ -223,8 +225,8 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
 
   const sortedAssets = useMemo(() => [...(assetsQuery.data ?? [])].sort((a, b) => b.updated_at.localeCompare(a.updated_at)), [assetsQuery.data])
   const outlineAsset = useMemo(
-    () => (allAssetsQuery.data ?? []).find((asset) => asset.type === 'outline') ?? null,
-    [allAssetsQuery.data],
+    () => ((filterType === 'all' ? assetsQuery.data : allAssetsQuery.data) ?? []).find((asset) => asset.type === 'outline') ?? null,
+    [allAssetsQuery.data, assetsQuery.data, filterType],
   )
   const isAssetSubmitting = createMutation.isPending || updateMutation.isPending
 

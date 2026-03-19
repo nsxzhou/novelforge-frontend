@@ -25,6 +25,10 @@ import {
 import { listAllChapters } from '@/shared/api/chapters'
 import { queryKeys } from '@/shared/api/queries'
 import {
+  invalidateCharacterStates,
+  invalidateProjectTimeline,
+} from '@/shared/api/query-invalidation'
+import {
   createTimelineEvent,
   deleteTimelineEvent,
   listTimelineEvents,
@@ -317,23 +321,11 @@ export function MemoryPanel({
     : null
 
   const refreshCharacterStates = async (targetChapterId?: string) => {
-    await queryClient.invalidateQueries({ queryKey: queryKeys.characterStatesLatest(projectId) })
-
-    if (chapterScopeId) {
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.characterStatesChapter(projectId, chapterScopeId),
-      })
-    }
-
-    if (targetChapterId && targetChapterId !== chapterScopeId) {
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.characterStatesChapter(projectId, targetChapterId),
-      })
-    }
+    await invalidateCharacterStates(queryClient, projectId, chapterScopeId, targetChapterId)
   }
 
   const refreshTimeline = async () => {
-    await queryClient.invalidateQueries({ queryKey: queryKeys.timeline(projectId) })
+    await invalidateProjectTimeline(queryClient, projectId)
   }
 
   const updateStateMutation = useMutation({

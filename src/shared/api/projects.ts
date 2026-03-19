@@ -1,10 +1,9 @@
 import { request } from '@/shared/api/http-client'
-import { parseJsonWithSchema, streamRequest, type SSECallbacks } from '@/shared/api/sse-client'
+import { parseJsonWithSchema, streamRequestWithSchema, type SSECallbacks } from '@/shared/api/sse-client'
 import type { GuidedProjectCandidate, Project, ProjectListItem, ProjectStatus, Asset } from '@/shared/api/types'
 import { brainstormEventSchema, brainstormResultSchema } from '@/shared/api/runtime-schemas'
 
 type ProjectListResponse = { projects: ProjectListItem[] }
-type GuidedCandidatesResponse = { candidates: GuidedProjectCandidate[] }
 type GuidedCreateResponse = { project: Project; created_assets: Asset[] }
 export type BrainstormResult = { discussion_summary: string; candidates: GuidedProjectCandidate[] }
 export type BrainstormEvent = {
@@ -75,14 +74,6 @@ export function deleteProject(projectId: string): Promise<void> {
   })
 }
 
-export async function getGuidedProjectCandidates(input: GuidedProjectInput): Promise<GuidedProjectCandidate[]> {
-  const result = await request<GuidedCandidatesResponse>('/projects/guided/candidates', {
-    method: 'POST',
-    body: input,
-  })
-  return result.candidates
-}
-
 export function createGuidedProject(input: GuidedCreateInput): Promise<GuidedCreateResponse> {
   return request<GuidedCreateResponse>('/projects/guided/create', {
     method: 'POST',
@@ -96,19 +87,26 @@ export function brainstormGuidedProjectStream(
   onEvent: (event: BrainstormEvent) => void,
   signal?: AbortSignal,
 ): void {
-  streamRequest<BrainstormResult>('/projects/guided/brainstorm', input, callbacks, signal, {
-    doneEventName: 'result',
-    timeoutMs: 300_000,
-    parseDone: (rawData) => parseJsonWithSchema(rawData, brainstormResultSchema, 'brainstorm result'),
-    onEvent: (eventType, rawData) => {
-      if (eventType === 'result' || eventType === 'error') {
-        return
-      }
-      try {
-        onEvent(parseJsonWithSchema(rawData, brainstormEventSchema, `brainstorm ${eventType} event`))
-      } catch {
-        // ignore malformed progress events
-      }
+  streamRequestWithSchema(
+    '/projects/guided/brainstorm',
+    input,
+    callbacks,
+    brainstormResultSchema,
+    'brainstorm result',
+    signal,
+    {
+      doneEventName: 'result',
+      timeoutMs: 300_000,
+      onEvent: (eventType, rawData) => {
+        if (eventType === 'result' || eventType === 'error') {
+          return
+        }
+        try {
+          onEvent(parseJsonWithSchema(rawData, brainstormEventSchema, `brainstorm ${eventType} event`))
+        } catch {
+          // ignore malformed progress events
+        }
+      },
     },
-  })
+  )
 }

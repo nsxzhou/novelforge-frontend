@@ -1,5 +1,5 @@
 import { request } from '@/shared/api/http-client'
-import { parseJsonWithSchema, streamRequest, type SSECallbacks } from '@/shared/api/sse-client'
+import { streamRequestWithSchema, type SSECallbacks } from '@/shared/api/sse-client'
 import type { Asset, AssetType, GenerationRecord } from '@/shared/api/types'
 import { assetGenerationResponseSchema } from '@/shared/api/runtime-schemas'
 
@@ -85,23 +85,18 @@ export function deleteAsset(assetId: string): Promise<void> {
   })
 }
 
-export function generateAsset(
-  projectId: string,
-  input: GenerateAssetInput,
-): Promise<AssetGenerationResponse> {
-  return request<AssetGenerationResponse>(`/projects/${projectId}/assets/generate`, {
-    method: 'POST',
-    body: input,
-  })
-}
-
 export function generateAssetStream(
   projectId: string,
   input: GenerateAssetInput,
   callbacks: SSECallbacks<AssetGenerationResponse>,
   signal?: AbortSignal,
 ): void {
-  streamRequest(`/projects/${projectId}/assets/generate/stream`, input, callbacks, signal, {
-    parseDone: (rawData) => parseJsonWithSchema(rawData, assetGenerationResponseSchema, 'asset generation result'),
-  })
+  streamRequestWithSchema(
+    `/projects/${projectId}/assets/generate/stream`,
+    input,
+    callbacks,
+    assetGenerationResponseSchema,
+    'asset generation result',
+    signal,
+  )
 }

@@ -1,7 +1,7 @@
 import { z } from 'zod'
+import { worldbuildingSeedSchema } from '@/shared/api/contract-defs'
 
-export const worldbuildingSchema = z.object({
-  _schema: z.literal('worldbuilding_v1'),
+export const worldbuildingSchema = worldbuildingSeedSchema.extend({
   geography: z.string().optional().default(''),
   politics: z.string().optional().default(''),
   magic_system: z.string().optional().default(''),

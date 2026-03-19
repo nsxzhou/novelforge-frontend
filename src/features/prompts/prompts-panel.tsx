@@ -7,6 +7,7 @@ import { FileText, RotateCcw, Save } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { deletePrompt, listPrompts, upsertPrompt } from '@/shared/api/prompts'
 import { queryKeys } from '@/shared/api/queries'
+import { invalidateProjectPrompts } from '@/shared/api/query-invalidation'
 import type { PromptTemplate } from '@/shared/api/types'
 import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
@@ -57,7 +58,7 @@ export function PromptsPanel({ projectId }: { projectId: string }) {
   })
 
   const refreshPrompts = async () => {
-    await queryClient.invalidateQueries({ queryKey: queryKeys.prompts(projectId) })
+    await invalidateProjectPrompts(queryClient, projectId)
   }
 
   const upsertMutation = useMutation({

@@ -1,19 +1,10 @@
 import { z } from 'zod'
+import {
+  assetTypeSchema,
+  guidedProjectCandidateSchema,
+} from '@/shared/api/contract-defs'
 
-export const assetTypeSchema = z.enum(['worldbuilding', 'character', 'outline'])
 export const chapterStatusSchema = z.enum(['draft', 'confirmed'])
-export const relationTypeSchema = z.enum(['ally', 'enemy', 'family', 'mentor', 'friend', 'rival', 'custom'])
-export const relationTypeConfigSchema = z.object({
-  value: relationTypeSchema,
-  label: z.string(),
-  color: z.string(),
-})
-export const characterRelationSchema = z.object({
-  target: z.string().trim().min(1),
-  type: relationTypeSchema,
-  custom_label: z.string().optional(),
-  description: z.string().optional(),
-})
 
 export const assetSchema = z.object({
   id: z.string(),
@@ -61,69 +52,6 @@ export const generationRecordSchema = z.object({
   error_message: z.string().optional(),
   created_at: z.string(),
   updated_at: z.string(),
-})
-
-const characterSeedSchema = z.object({
-  _schema: z.literal('character_v1'),
-  name: z.string(),
-  age: z.string().optional(),
-  gender: z.string().optional(),
-  personality_tags: z.array(z.string()).optional(),
-  motivation: z.string().optional(),
-  appearance: z.string().optional(),
-  catchphrase: z.string().optional(),
-  backstory: z.string().optional(),
-  relationships: z.string().optional(),
-  notes: z.string().optional(),
-})
-
-const worldbuildingSeedSchema = z.object({
-  _schema: z.literal('worldbuilding_v1'),
-  geography: z.string().optional(),
-  politics: z.string().optional(),
-  magic_system: z.string().optional(),
-  technology_level: z.string().optional(),
-  culture: z.string().optional(),
-  history: z.string().optional(),
-  economy: z.string().optional(),
-  religion: z.string().optional(),
-  notes: z.string().optional(),
-})
-
-const outlineChapterSeedSchema = z.object({
-  ordinal: z.number().int(),
-  title: z.string(),
-  summary: z.string().optional(),
-  purpose: z.string().optional(),
-  must_include: z.array(z.string()).optional(),
-})
-
-const outlineVolumeSeedSchema = z.object({
-  title: z.string(),
-  summary: z.string().optional(),
-  key_events: z.array(z.string()).optional(),
-  chapters: z.array(outlineChapterSeedSchema),
-})
-
-const outlineSeedSchema = z.object({
-  _schema: z.literal('outline_v2'),
-  premise: z.string().optional(),
-  themes: z.array(z.string()).optional(),
-  central_conflict: z.string().optional(),
-  volumes: z.array(outlineVolumeSeedSchema).optional(),
-  ending: z.string().optional(),
-  notes: z.string().optional(),
-})
-
-export const guidedProjectCandidateSchema = z.object({
-  title: z.string(),
-  summary: z.string(),
-  hook: z.string(),
-  core_conflict: z.string(),
-  tone: z.string(),
-  outline_seed: outlineSeedSchema,
-  worldbuilding_seed: worldbuildingSeedSchema,
-  protagonist_seed: characterSeedSchema,
 })
 
 export const brainstormResultSchema = z.object({

@@ -8,19 +8,20 @@ import {
   Plus, BookOpen, FileText, AlignLeft, Undo2,
 } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { listAssets } from '@/shared/api/assets'
+import { listAllAssets } from '@/shared/api/assets'
 import {
   confirmChapter,
   unconfirmChapter,
   createChapterStream,
   continueChapterStream,
   getChapter,
-  listChapters,
+  listAllChapters,
   rewriteChapterStream,
   updateChapter,
 } from '@/shared/api/chapters'
 import type { ChapterGenerationResponse } from '@/shared/api/chapters'
 import { queryKeys } from '@/shared/api/queries'
+import { invalidateProjectChapters } from '@/shared/api/query-invalidation'
 import type { Chapter } from '@/shared/api/types'
 import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
@@ -123,13 +124,13 @@ export function ChaptersPanel({
   })
 
   const chaptersQuery = useQuery({
-    queryKey: queryKeys.chapters(projectId),
-    queryFn: () => listChapters(projectId, 100, 0),
+    queryKey: queryKeys.chaptersAll(projectId),
+    queryFn: () => listAllChapters(projectId),
   })
 
   const assetsQuery = useQuery({
     queryKey: queryKeys.assetsAll(projectId, 'all'),
-    queryFn: () => listAssets({ projectId, limit: 100, offset: 0 }),
+    queryFn: () => listAllAssets({ projectId }),
   })
 
   const chapterDetailQuery = useQuery({
@@ -139,11 +140,7 @@ export function ChaptersPanel({
   })
 
   const refreshChapters = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: queryKeys.chapters(projectId) })
-    await queryClient.invalidateQueries({ queryKey: queryKeys.chaptersAll(projectId) })
-    if (selectedChapterId) {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.chapter(selectedChapterId) })
-    }
+    await invalidateProjectChapters(queryClient, projectId, selectedChapterId)
   }, [queryClient, projectId, selectedChapterId])
 
   const startStream = useCallback(() => {

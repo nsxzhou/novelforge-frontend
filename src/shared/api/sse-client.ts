@@ -17,6 +17,8 @@ type StreamRequestOptions<T> = {
   parseDone?: (rawData: string) => T
 }
 
+type StreamRequestWithSchemaOptions<T> = Omit<StreamRequestOptions<T>, 'parseDone'>
+
 export function parseJsonWithSchema<T>(
   rawData: string,
   schema: ZodType<T>,
@@ -109,6 +111,21 @@ export function streamRequest<T>(
       if (signal?.aborted) return
       callbacks.onError(err instanceof Error ? err.message : 'Stream request failed')
     })
+}
+
+export function streamRequestWithSchema<T>(
+  path: string,
+  body: unknown,
+  callbacks: SSECallbacks<T>,
+  schema: ZodType<T>,
+  label: string,
+  signal?: AbortSignal,
+  options: StreamRequestWithSchemaOptions<T> = {},
+): void {
+  streamRequest(path, body, callbacks, signal, {
+    ...options,
+    parseDone: (rawData) => parseJsonWithSchema(rawData, schema, label),
+  })
 }
 
 function parseErrorMessage(rawData: string): string {

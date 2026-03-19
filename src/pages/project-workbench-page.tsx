@@ -7,12 +7,13 @@ import {
   FileText, Calendar, ChevronRight,
 } from 'lucide-react'
 import { getProject, updateProject, deleteProject } from '@/shared/api/projects'
-import { listAssets } from '@/shared/api/assets'
-import { listChapters } from '@/shared/api/chapters'
+import { listAllAssets } from '@/shared/api/assets'
+import { listAllChapters } from '@/shared/api/chapters'
 import { parseStructuredContent } from '@/features/assets/schemas/asset-content'
 import { flattenOutlineChapters, type OutlineData } from '@/features/assets/schemas/outline-schema'
 import { exportProject } from '@/shared/api/export'
 import { queryKeys } from '@/shared/api/queries'
+import { invalidateProjectOverview } from '@/shared/api/query-invalidation'
 import { LoadingState, ErrorState } from '@/shared/ui/feedback'
 import { Tabs } from '@/shared/ui/tabs'
 import { Button } from '@/shared/ui/button'
@@ -67,14 +68,14 @@ export function ProjectWorkbenchPage() {
   })
 
   const assetsQuery = useQuery({
-    queryKey: queryKeys.assets(projectId, 'all'),
-    queryFn: () => listAssets({ projectId, limit: 200, offset: 0 }),
+    queryKey: queryKeys.assetsAll(projectId, 'all'),
+    queryFn: () => listAllAssets({ projectId }),
     enabled: Boolean(projectId),
   })
 
   const chaptersQuery = useQuery({
-    queryKey: queryKeys.chapters(projectId),
-    queryFn: () => listChapters(projectId, 200, 0),
+    queryKey: queryKeys.chaptersAll(projectId),
+    queryFn: () => listAllChapters(projectId),
     enabled: Boolean(projectId),
   })
 
@@ -87,8 +88,7 @@ export function ProjectWorkbenchPage() {
       }),
     onSuccess: async () => {
       setIsEditing(false)
-      await queryClient.invalidateQueries({ queryKey: queryKeys.project(projectId) })
-      await queryClient.invalidateQueries({ queryKey: queryKeys.projects })
+      await invalidateProjectOverview(queryClient, projectId)
       toast('项目已更新')
     },
   })

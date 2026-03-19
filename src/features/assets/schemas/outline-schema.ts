@@ -1,10 +1,15 @@
 import { z } from 'zod'
+import {
+  outlineChapterSeedSchema,
+  outlineSeedSchema,
+  outlineVolumeSeedSchema,
+} from '@/shared/api/contract-defs'
 
 function trimStringList(values: string[]) {
   return values.map((value) => value.trim()).filter(Boolean)
 }
 
-export const outlineChapterPlanSchema = z.object({
+export const outlineChapterPlanSchema = outlineChapterSeedSchema.extend({
   ordinal: z.number().int().positive().default(1),
   title: z.string().default(''),
   summary: z.string().default(''),
@@ -12,15 +17,14 @@ export const outlineChapterPlanSchema = z.object({
   must_include: z.array(z.string()).default([]),
 }).strict()
 
-export const outlineVolumeSchema = z.object({
+export const outlineVolumeSchema = outlineVolumeSeedSchema.extend({
   title: z.string().default(''),
   summary: z.string().default(''),
   key_events: z.array(z.string()).default([]),
   chapters: z.array(outlineChapterPlanSchema).min(1, '每个分卷至少需要一个章节'),
 }).strict()
 
-export const outlineSchema = z.object({
-  _schema: z.literal('outline_v2'),
+export const outlineSchema = outlineSeedSchema.extend({
   premise: z.string().default(''),
   themes: z.array(z.string()).default([]),
   central_conflict: z.string().default(''),
@@ -133,8 +137,4 @@ export function flattenOutlineChapters(outline: OutlineLike | null | undefined):
     })))
     .slice()
     .sort((a, b) => a.ordinal - b.ordinal)
-}
-
-export function countPlannedChapters(outline: OutlineLike | null | undefined): number {
-  return flattenOutlineChapters(outline).length
 }

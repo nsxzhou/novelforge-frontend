@@ -1,4 +1,18 @@
 import { GENERATED_RELATION_TYPES } from '@/shared/api/generated/contracts'
+import type {
+  AssetType,
+  RelationType,
+} from '@/shared/api/contract-defs'
+export type {
+  CharacterSeed,
+  GuidedProjectCandidate,
+  OutlineChapterSeed,
+  OutlineSeed,
+  OutlineVolumeSeed,
+  WorldbuildingSeed,
+  AssetType,
+  RelationType,
+} from '@/shared/api/contract-defs'
 
 export type ProjectStatus = 'draft' | 'active' | 'archived'
 
@@ -14,71 +28,6 @@ export type Project = {
 export type ProjectListItem = Project & {
   chapter_count: number
   word_count: number
-}
-
-export type AssetType = 'worldbuilding' | 'character' | 'outline'
-
-export type CharacterSeed = {
-  _schema: 'character_v1'
-  name: string
-  age?: string
-  gender?: string
-  personality_tags?: string[]
-  motivation?: string
-  appearance?: string
-  catchphrase?: string
-  backstory?: string
-  relationships?: string
-  notes?: string
-}
-
-export type WorldbuildingSeed = {
-  _schema: 'worldbuilding_v1'
-  geography?: string
-  politics?: string
-  magic_system?: string
-  technology_level?: string
-  culture?: string
-  history?: string
-  economy?: string
-  religion?: string
-  notes?: string
-}
-
-export type OutlineChapterSeed = {
-  ordinal: number
-  title: string
-  summary?: string
-  purpose?: string
-  must_include?: string[]
-}
-
-export type OutlineVolumeSeed = {
-  title: string
-  summary?: string
-  key_events?: string[]
-  chapters: OutlineChapterSeed[]
-}
-
-export type OutlineSeed = {
-  _schema: 'outline_v2'
-  premise?: string
-  themes?: string[]
-  central_conflict?: string
-  volumes?: OutlineVolumeSeed[]
-  ending?: string
-  notes?: string
-}
-
-export type GuidedProjectCandidate = {
-  title: string
-  summary: string
-  hook: string
-  core_conflict: string
-  tone: string
-  outline_seed: OutlineSeed
-  worldbuilding_seed: WorldbuildingSeed
-  protagonist_seed: CharacterSeed
 }
 
 export type Asset = {
@@ -108,16 +57,6 @@ export type Chapter = {
   created_at: string
   updated_at: string
 }
-
-// 关系类型枚举
-export type RelationType =
-  | 'ally'      // 盟友
-  | 'enemy'     // 敌对
-  | 'family'    // 亲属
-  | 'mentor'    // 师徒
-  | 'friend'    // 朋友
-  | 'rival'     // 对手
-  | 'custom'    // 自定义
 
 // 关系类型配置
 export interface RelationTypeConfig {

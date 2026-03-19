@@ -12,10 +12,6 @@ export function listPrompts(projectId: string): Promise<PromptTemplate[]> {
   return request<PromptListResponse>(`/projects/${projectId}/prompts`).then((r) => r.prompts)
 }
 
-export function getPrompt(projectId: string, capability: string): Promise<PromptTemplate> {
-  return request<PromptTemplate>(`/projects/${projectId}/prompts/${capability}`)
-}
-
 export function upsertPrompt(
   projectId: string,
   capability: string,

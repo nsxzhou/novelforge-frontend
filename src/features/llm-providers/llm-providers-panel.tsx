@@ -12,6 +12,7 @@ import {
   updateProvider,
 } from '@/shared/api/llm-providers'
 import { queryKeys } from '@/shared/api/queries'
+import { invalidateProviders } from '@/shared/api/query-invalidation'
 import type { LLMProvider, LLMProviderTestResult } from '@/shared/api/types'
 import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
@@ -75,7 +76,7 @@ export function LLMProvidersPanel() {
   })
 
   const refreshProviders = async () => {
-    await queryClient.invalidateQueries({ queryKey: queryKeys.llmProviders })
+    await invalidateProviders(queryClient)
   }
 
   const addMutation = useMutation({
