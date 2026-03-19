@@ -583,8 +583,8 @@ export function MemoryPanel({
           <ErrorState key={message} text={message} className="flex w-full" />
         ))}
 
-        <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-          <Badge variant="warning">覆盖提示</Badge>
+        <div className="flex items-baseline gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+          <Badge variant="warning" className="shrink-0 mt-0.5">覆盖提示</Badge>
           <p className="leading-6">
             角色状态与时间线来自章节抽取。若后续重新抽取同一章节，相关手动修订或补录内容可能被新的抽取结果覆盖。
           </p>
@@ -665,12 +665,12 @@ export function MemoryPanel({
         <Card padding="none" className="overflow-hidden">
           <div className="grid lg:grid-cols-[320px_minmax(0,1fr)]">
             <div className="space-y-4 border-b border-border p-4 lg:border-b-0 lg:border-r">
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-medium text-foreground">角色状态列表</h3>
                   <p className="mt-1 text-xs text-muted-foreground">先选角色，再在右侧审查来源、连续性与修订内容。</p>
                 </div>
-                <Badge variant="default">{scopedStates.length} 人</Badge>
+                <Badge variant="default" className="shrink-0">{scopedStates.length} 人</Badge>
               </div>
 
               {activeStateQuery.error ? (
@@ -990,13 +990,14 @@ export function MemoryPanel({
         <Card padding="none" className="overflow-hidden">
           <div className="grid lg:grid-cols-[320px_minmax(0,1fr)]">
             <div className="space-y-4 border-b border-border p-4 lg:border-b-0 lg:border-r">
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-medium text-foreground">时间线列表</h3>
                   <p className="mt-1 text-xs text-muted-foreground">按事件顺序审查，再在右侧修订或补录细节。</p>
                 </div>
                 <Button
                   size="sm"
+                  className="shrink-0"
                   onClick={() => {
                     setShowCreateEventForm(true)
                     setEditingEventId(null)
@@ -1295,14 +1296,14 @@ export function MemoryPanel({
 
       {workspaceView === 'graph' ? (
         <Card className="space-y-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="text-lg font-medium tracking-tight text-foreground">关系概览</h3>
               <p className="mt-1 text-sm text-muted-foreground">
                 图谱现在作为总览辅助使用，帮助快速识别缺失状态、关系边和角色设定覆盖情况。
               </p>
             </div>
-            <Badge icon={<GitBranch className="h-3 w-3" />} variant="default">
+            <Badge icon={<GitBranch className="h-3 w-3" />} variant="default" className="shrink-0">
               {flowData.edges.length} 条关系边
             </Badge>
           </div>
