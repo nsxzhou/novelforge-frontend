@@ -9,6 +9,11 @@ export type Project = {
   updated_at: string
 }
 
+export type ProjectListItem = Project & {
+  chapter_count: number
+  word_count: number
+}
+
 export type AssetType = 'worldbuilding' | 'character' | 'outline'
 
 export type CharacterSeed = {
@@ -171,4 +176,10 @@ export type PromptTemplate = {
   user: string
   is_override: boolean
   available_variables: string[]
+}
+
+export type ProjectStats = {
+  project_id: string
+  chapter_count: number
+  word_count: number
 }

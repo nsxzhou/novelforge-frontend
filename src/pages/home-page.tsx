@@ -3,12 +3,12 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Plus } from 'lucide-react'
 import { listProjects } from '@/shared/api/projects'
-import { listChapters } from '@/shared/api/chapters'
+import { getStats } from '@/shared/api/stats'
 import { queryKeys } from '@/shared/api/queries'
-import type { Project, Chapter } from '@/shared/api/types'
+import type { ProjectListItem } from '@/shared/api/types'
 import { Badge } from '@/shared/ui/badge'
 import { LoadingState } from '@/shared/ui/feedback'
-import { wordCount, formatRelativeTime } from '@/shared/lib/format'
+import { formatRelativeTime } from '@/shared/lib/format'
 
 const statusLabel: Record<string, string> = {
   draft: '草稿',
@@ -33,12 +33,8 @@ function StatCard({ label, value }: { label: string; value: number }) {
 
 function ProjectCard({
   project,
-  chapterCount,
-  totalWords,
 }: {
-  project: Project
-  chapterCount: number
-  totalWords: number
+  project: ProjectListItem
 }) {
   return (
     <Link to={`/projects/${project.id}`}>
@@ -51,8 +47,8 @@ function ProjectCard({
         </div>
         <p className="mt-2 text-sm text-muted-foreground line-clamp-2">{project.summary}</p>
         <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground">
-          <span>{chapterCount} 章节</span>
-          <span>{totalWords} 字</span>
+          <span>{project.chapter_count} 章节</span>
+          <span>{project.word_count} 字</span>
           <span className="ml-auto">{formatRelativeTime(project.updated_at)}</span>
         </div>
       </div>
@@ -63,11 +59,9 @@ function ProjectCard({
 function KanbanColumn({
   title,
   projects,
-  chaptersMap,
 }: {
   title: string
-  projects: Project[]
-  chaptersMap: Map<string, Chapter[]>
+  projects: ProjectListItem[]
 }) {
   return (
     <div>
@@ -76,18 +70,7 @@ function KanbanColumn({
         <span className="text-sm text-muted-foreground">{projects.length}</span>
       </div>
       <div className="space-y-3">
-        {projects.map((project) => {
-          const chapters = chaptersMap.get(project.id) ?? []
-          const totalWords = chapters.reduce((sum, ch) => sum + wordCount(ch.content), 0)
-          return (
-            <ProjectCard
-              key={project.id}
-              project={project}
-              chapterCount={chapters.length}
-              totalWords={totalWords}
-            />
-          )
-        })}
+        {projects.map((project) => <ProjectCard key={project.id} project={project} />)}
         <Link to="/new-project">
           <div className="flex items-center justify-center rounded-lg border border-dashed border-[#E2E8F0] p-4 text-sm text-muted-foreground transition-colors duration-150 hover:bg-[#F8FAFC] hover:text-foreground">
             <Plus className="mr-2 h-4 w-4" />
@@ -105,39 +88,28 @@ export function HomePage() {
     queryFn: () => listProjects({ limit: 200, offset: 0 }),
   })
 
-  const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data])
-
-  // Fetch chapters for all projects
-  const projectIds = useMemo(() => projects.map((p) => p.id).join(','), [projects])
-  const chaptersQueries = useQuery({
-    queryKey: ['all-chapters', projectIds],
-    queryFn: async () => {
-      const results = await Promise.all(
-        projects.map((p) => listChapters(p.id, 200, 0).catch(() => [] as Chapter[])),
-      )
-      const map = new Map<string, Chapter[]>()
-      projects.forEach((p, i) => map.set(p.id, results[i]))
-      return map
-    },
-    enabled: projects.length > 0,
+  const statsQuery = useQuery({
+    queryKey: queryKeys.stats,
+    queryFn: getStats,
   })
 
-  const chaptersMap = useMemo(() => chaptersQueries.data ?? new Map<string, Chapter[]>(), [chaptersQueries.data])
+  const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data])
 
   const stats = useMemo(() => {
-    let totalChapters = 0
-    let totalWords = 0
-    chaptersMap.forEach((chapters) => {
-      totalChapters += chapters.length
-      totalWords += chapters.reduce((sum, ch) => sum + wordCount(ch.content), 0)
-    })
-    return { projectCount: projects.length, totalChapters, totalWords }
-  }, [projects.length, chaptersMap])
+    if (statsQuery.data) {
+      return {
+        projectCount: statsQuery.data.project_count,
+        totalChapters: statsQuery.data.chapter_count,
+        totalWords: statsQuery.data.total_word_count,
+      }
+    }
+    return { projectCount: projects.length, totalChapters: 0, totalWords: 0 }
+  }, [statsQuery.data, projects.length])
 
   const grouped = useMemo(() => {
-    const draft: Project[] = []
-    const active: Project[] = []
-    const archived: Project[] = []
+    const draft: ProjectListItem[] = []
+    const active: ProjectListItem[] = []
+    const archived: ProjectListItem[] = []
     for (const p of projects) {
       if (p.status === 'draft') draft.push(p)
       else if (p.status === 'active') active.push(p)
@@ -171,9 +143,9 @@ export function HomePage() {
 
       {/* Kanban */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <KanbanColumn title="草稿" projects={grouped.draft} chaptersMap={chaptersMap} />
-        <KanbanColumn title="进行中" projects={grouped.active} chaptersMap={chaptersMap} />
-        <KanbanColumn title="已归档" projects={grouped.archived} chaptersMap={chaptersMap} />
+        <KanbanColumn title="草稿" projects={grouped.draft} />
+        <KanbanColumn title="进行中" projects={grouped.active} />
+        <KanbanColumn title="已归档" projects={grouped.archived} />
       </div>
     </div>
   )

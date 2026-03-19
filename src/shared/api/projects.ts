@@ -1,9 +1,17 @@
 ﻿import { request } from '@/shared/api/http-client'
-import type { GuidedProjectCandidate, Project, ProjectStatus, Asset } from '@/shared/api/types'
+import { streamRequest, type SSECallbacks } from '@/shared/api/sse-client'
+import type { GuidedProjectCandidate, Project, ProjectListItem, ProjectStatus, Asset } from '@/shared/api/types'
 
-type ProjectListResponse = { projects: Project[] }
+type ProjectListResponse = { projects: ProjectListItem[] }
 type GuidedCandidatesResponse = { candidates: GuidedProjectCandidate[] }
 type GuidedCreateResponse = { project: Project; created_assets: Asset[] }
+export type BrainstormResult = { discussion_summary: string; candidates: GuidedProjectCandidate[] }
+export type BrainstormEvent = {
+  type: string
+  agent?: 'story_architect' | 'world_architect' | 'character_designer' | 'chief_editor'
+  round?: number
+  hint?: string
+}
 
 export type UpsertProjectInput = {
   title: string
@@ -31,7 +39,7 @@ export async function listProjects(params: {
   status?: ProjectStatus
   limit?: number
   offset?: number
-} = {}): Promise<Project[]> {
+} = {}): Promise<ProjectListItem[]> {
   const search = new URLSearchParams()
   if (params.status) search.set('status', params.status)
   if (params.limit !== undefined) search.set('limit', String(params.limit))
@@ -78,5 +86,27 @@ export function createGuidedProject(input: GuidedCreateInput): Promise<GuidedCre
   return request<GuidedCreateResponse>('/projects/guided/create', {
     method: 'POST',
     body: input,
+  })
+}
+
+export function brainstormGuidedProjectStream(
+  input: GuidedProjectInput,
+  callbacks: SSECallbacks<BrainstormResult>,
+  onEvent: (event: BrainstormEvent) => void,
+  signal?: AbortSignal,
+): void {
+  streamRequest<BrainstormResult>('/projects/guided/brainstorm', input, callbacks, signal, {
+    doneEventName: 'result',
+    timeoutMs: 300_000,
+    onEvent: (eventType, rawData) => {
+      if (eventType === 'result' || eventType === 'error') {
+        return
+      }
+      try {
+        onEvent(JSON.parse(rawData) as BrainstormEvent)
+      } catch {
+        // ignore malformed progress events
+      }
+    },
   })
 }

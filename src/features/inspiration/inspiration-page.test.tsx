@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -7,8 +7,8 @@ import { InspirationPage } from './inspiration-page'
 
 const navigateMock = vi.fn()
 const createProjectMock = vi.fn()
-const getGuidedProjectCandidatesMock = vi.fn()
 const createGuidedProjectMock = vi.fn()
+const brainstormGuidedProjectStreamMock = vi.fn()
 
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
@@ -20,8 +20,8 @@ vi.mock('react-router-dom', async () => {
 
 vi.mock('@/shared/api/projects', () => ({
   createProject: (...args: unknown[]) => createProjectMock(...args),
-  getGuidedProjectCandidates: (...args: unknown[]) => getGuidedProjectCandidatesMock(...args),
   createGuidedProject: (...args: unknown[]) => createGuidedProjectMock(...args),
+  brainstormGuidedProjectStream: (...args: unknown[]) => brainstormGuidedProjectStreamMock(...args),
 }))
 
 function renderPage() {
@@ -209,8 +209,7 @@ describe('InspirationPage', () => {
     expect(navigateMock).toHaveBeenCalledWith('/projects/project-1')
   })
 
-  it('generates guided candidates and creates a guided project into assets tab', async () => {
-    getGuidedProjectCandidatesMock.mockResolvedValue(guidedCandidates)
+  it('runs brainstorm wizard and creates a guided project into assets tab', async () => {
     createGuidedProjectMock.mockResolvedValue({
       project: {
         id: 'guided-1',
@@ -227,20 +226,48 @@ describe('InspirationPage', () => {
     const user = userEvent.setup()
 
     await user.click(screen.getByRole('button', { name: '开始组合创建' }))
-    await user.click(screen.getByRole('button', { name: '生成候选' }))
+    await user.click(screen.getByRole('button', { name: '开始头脑风暴' }))
 
     await waitFor(() => {
-      expect(getGuidedProjectCandidatesMock).toHaveBeenCalledWith({
-        genre: '悬疑',
-        setting: '近未来都市',
-        protagonist_archetype: '失忆幸存者',
-        core_conflict: '真相追索',
-        tone: '冷峻悬疑',
-        custom_note: '',
-      })
+      expect(brainstormGuidedProjectStreamMock).toHaveBeenCalled()
     })
 
+    const [input, callbacks, onEvent] = brainstormGuidedProjectStreamMock.mock.calls[0] as [
+      {
+        genre: string
+        setting: string
+        protagonist_archetype: string
+        core_conflict: string
+        tone: string
+        custom_note?: string
+      },
+      {
+        onDone: (result: { discussion_summary: string; candidates: typeof guidedCandidates }) => void
+        onError: (error: string) => void
+      },
+      (event: { type: string; agent?: string; round?: number; hint?: string }) => void,
+    ]
+
+    expect(input).toEqual({
+      genre: '悬疑',
+      setting: '近未来都市',
+      protagonist_archetype: '失忆幸存者',
+      core_conflict: '真相追索',
+      tone: '冷峻悬疑',
+      custom_note: undefined,
+    })
+
+    await act(async () => {
+      onEvent({ type: 'agent_start', agent: 'story_architect', round: 1 })
+      onEvent({ type: 'agent_thinking', agent: 'story_architect', hint: '正在构思叙事结构...' })
+      onEvent({ type: 'agent_done', agent: 'story_architect' })
+      onEvent({ type: 'round_done', round: 3 })
+      callbacks.onDone({ discussion_summary: '主编收敛出三条方向。', candidates: guidedCandidates })
+    })
+
+    await screen.findByRole('heading', { name: '候选方案' })
     await user.click(screen.getByText('深空疑云'))
+    await user.click(screen.getByRole('button', { name: '下一步' }))
     await user.click(screen.getByLabelText('大纲种子'))
     await user.click(screen.getByRole('button', { name: '创建项目并进入设定工坊' }))
 

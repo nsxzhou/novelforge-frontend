@@ -7,13 +7,26 @@ export type SSECallbacks<T> = {
   onError: (error: string) => void
 }
 
+type StreamRequestOptions<T> = {
+  contentEventName?: string
+  doneEventName?: string
+  errorEventName?: string
+  timeoutMs?: number
+  onEvent?: (eventType: string, rawData: string) => void
+  parseDone?: (rawData: string) => T
+}
+
 export function streamRequest<T>(
   path: string,
   body: unknown,
   callbacks: SSECallbacks<T>,
   signal?: AbortSignal,
+  options: StreamRequestOptions<T> = {},
 ): void {
   const url = `${appEnv.apiBaseUrl}${path}`
+  const timeoutMs = options.timeoutMs ?? 300_000
+  const timeoutSignal = AbortSignal.timeout(timeoutMs)
+  const requestSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal
 
   fetch(url, {
     method: 'POST',
@@ -22,7 +35,7 @@ export function streamRequest<T>(
       'X-User-ID': getClientUserId(),
     },
     body: JSON.stringify(body),
-    signal,
+    signal: requestSignal,
   })
     .then(async (response) => {
       if (!response.ok) {
@@ -54,16 +67,18 @@ export function streamRequest<T>(
             currentEvent = line.slice(7).trim()
           } else if (line.startsWith('data: ')) {
             const data = line.slice(6)
-            if (currentEvent === 'content') {
+            options.onEvent?.(currentEvent, data)
+            if (currentEvent === (options.contentEventName ?? 'content')) {
               callbacks.onContent(data)
-            } else if (currentEvent === 'done') {
+            } else if (currentEvent === (options.doneEventName ?? 'done')) {
               try {
-                callbacks.onDone(JSON.parse(data) as T)
+                const parsed = options.parseDone ? options.parseDone(data) : JSON.parse(data) as T
+                callbacks.onDone(parsed)
               } catch {
                 callbacks.onError('Failed to parse done event data')
               }
-            } else if (currentEvent === 'error') {
-              callbacks.onError(data)
+            } else if (currentEvent === (options.errorEventName ?? 'error')) {
+              callbacks.onError(parseErrorMessage(data))
             }
             currentEvent = ''
           }
@@ -74,4 +89,16 @@ export function streamRequest<T>(
       if (signal?.aborted) return
       callbacks.onError(err instanceof Error ? err.message : 'Stream request failed')
     })
+}
+
+function parseErrorMessage(rawData: string): string {
+  try {
+    const parsed = JSON.parse(rawData) as { error?: unknown }
+    if (typeof parsed.error === 'string' && parsed.error.trim() !== '') {
+      return parsed.error
+    }
+  } catch {
+    // ignore invalid json
+  }
+  return rawData
 }
