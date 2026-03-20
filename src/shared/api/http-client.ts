@@ -27,6 +27,43 @@ type RequestOptions = {
   timeout?: number
 }
 
+export type TransportErrorKind = 'timeout' | 'cancelled' | 'disconnected' | 'unknown'
+
+export function createRequestSignal(timeout: number, signal?: AbortSignal): AbortSignal {
+  const timeoutSignal = AbortSignal.timeout(timeout)
+  return signal ? AbortSignal.any([timeoutSignal, signal]) : timeoutSignal
+}
+
+export function getTransportErrorKind(error: unknown): TransportErrorKind {
+  if (!(error instanceof Error)) {
+    return 'unknown'
+  }
+  if (error.name === 'TimeoutError') {
+    return 'timeout'
+  }
+  if (error.name === 'AbortError' && /This operation was aborted/i.test(error.message)) {
+    return 'cancelled'
+  }
+  if (error.name === 'AbortError' || /BodyStreamBuffer was aborted/i.test(error.message)) {
+    return 'disconnected'
+  }
+  return 'unknown'
+}
+
+function normalizeRequestError(error: unknown): Error {
+  const kind = getTransportErrorKind(error)
+  if (kind === 'timeout') {
+    return new Error('AI 请求超时，请增大 Provider 超时时间后重试。')
+  }
+  if (kind === 'disconnected') {
+    return new Error('AI 连接已中断，请重试。')
+  }
+  if (error instanceof Error) {
+    return error
+  }
+  return new Error('请求失败，请稍后重试。')
+}
+
 async function fetchWithDefaults(path: string, options: RequestOptions = {}): Promise<Response> {
   const method = options.method ?? 'GET'
   const headers: Record<string, string> = {
@@ -42,8 +79,7 @@ async function fetchWithDefaults(path: string, options: RequestOptions = {}): Pr
   }
 
   const timeout = options.timeout ?? 30_000
-  const timeoutSignal = AbortSignal.timeout(timeout)
-  const signal = options.signal ? AbortSignal.any([timeoutSignal, options.signal]) : timeoutSignal
+  const signal = createRequestSignal(timeout, options.signal)
 
   return fetch(`${appEnv.apiBaseUrl}${path}`, {
     method,
@@ -76,7 +112,12 @@ function toHttpError(response: Response, payload: unknown): HttpError {
 }
 
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const response = await fetchWithDefaults(path, options)
+  let response: Response
+  try {
+    response = await fetchWithDefaults(path, options)
+  } catch (error) {
+    throw normalizeRequestError(error)
+  }
 
   if (response.status === 204) {
     return undefined as T
@@ -92,7 +133,12 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 }
 
 export async function requestRaw(path: string, options: RequestOptions = {}): Promise<Response> {
-  const response = await fetchWithDefaults(path, options)
+  let response: Response
+  try {
+    response = await fetchWithDefaults(path, options)
+  } catch (error) {
+    throw normalizeRequestError(error)
+  }
   if (!response.ok) {
     const payload = await parseJsonSafe(response)
     throw toHttpError(response, payload)

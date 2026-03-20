@@ -164,6 +164,16 @@ export type LLMProviderTestResult = {
   message: string
 }
 
+export type LLMTimeoutPolicy = {
+  base_provider_timeout_seconds: number
+  single_call_buffer_seconds: number
+  brainstorm_stage_count: number
+  brainstorm_buffer_seconds: number
+  single_call_timeout_seconds: number
+  brainstorm_timeout_seconds: number
+  server_write_timeout_seconds: number
+}
+
 export type PromptTemplate = {
   capability: string
   system: string

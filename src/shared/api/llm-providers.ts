@@ -1,5 +1,5 @@
 import { request } from '@/shared/api/http-client'
-import type { LLMProvider, LLMProviderTestResult } from '@/shared/api/types'
+import type { LLMProvider, LLMProviderTestResult, LLMTimeoutPolicy } from '@/shared/api/types'
 
 type ProviderListResponse = { providers: LLMProvider[] }
 
@@ -17,6 +17,10 @@ export type UpdateProviderInput = Partial<AddProviderInput>
 
 export function listProviders(): Promise<LLMProvider[]> {
   return request<ProviderListResponse>('/llm/providers').then((r) => r.providers)
+}
+
+export function getTimeoutPolicy(): Promise<LLMTimeoutPolicy> {
+  return request<LLMTimeoutPolicy>('/llm/timeout-policy')
 }
 
 export function addProvider(input: AddProviderInput): Promise<LLMProvider> {
@@ -39,8 +43,10 @@ export function deleteProvider(id: string): Promise<void> {
   })
 }
 
-export function testProvider(id: string): Promise<LLMProviderTestResult> {
+export async function testProvider(id: string, timeoutSeconds: number): Promise<LLMProviderTestResult> {
+  const policy = await getTimeoutPolicy()
   return request<LLMProviderTestResult>(`/llm/providers/${encodeURIComponent(id)}/test`, {
     method: 'POST',
+    timeout: (timeoutSeconds + policy.single_call_buffer_seconds) * 1000,
   })
 }
