@@ -488,10 +488,10 @@ export function MemoryPanel({
           <ErrorState key={message} text={message} className="flex w-full" />
         ))}
 
-        <div className="flex items-baseline gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-          <Badge variant="warning" className="shrink-0 mt-0.5">覆盖提示</Badge>
+        <div className="flex items-baseline gap-3 rounded-xl border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
+          <Badge variant="default" className="shrink-0 mt-0.5">同步说明</Badge>
           <p className="leading-6">
-            角色状态与时间线来自章节抽取。若后续重新抽取同一章节，相关手动修订或补录内容可能被新的抽取结果覆盖。
+            重新抽取同一章节时，仅自动抽取的记录会被替换；手动修订或补录的记录将被保留。
           </p>
         </div>
 

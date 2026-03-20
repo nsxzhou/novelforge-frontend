@@ -103,6 +103,7 @@ export type CharacterState = {
   emotional_state: string
   relationships: CharacterRelation[]
   notes: string
+  source: 'extracted' | 'manual'
   created_at: string
   updated_at: string
 }
@@ -114,6 +115,7 @@ export type TimelineEvent = {
   ordinal: number
   summary: string
   story_time: string
+  source: 'extracted' | 'manual'
   created_at: string
   updated_at: string
 }

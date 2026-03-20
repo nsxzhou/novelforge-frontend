@@ -129,15 +129,15 @@ src/
 
 ### 跨章节数据依赖
 
-- MemoryPanel 自行拉取全量 chapters/assets，不再依赖父组件传入（避免 200 条截断限制）
-- 父组件（ProjectWorkbenchPage）仍保留独立的数据加载，存在重复请求
+- MemoryPanel 独立拉取全量 chapters/assets，不再依赖父组件传入（避免 200 条截断限制）
+- 父组件（ProjectWorkbenchPage）仍保留独立的数据加载，但 React Query 通过相同 queryKey 自动去重，不产生重复 HTTP 请求
+- Assets 使用不同 queryKey 属于设计意图
 
-### 人工修订覆盖风险
+### 人工修订覆盖风险（已缓解）
 
-- 人工修订写入主表（`character_states` / `timeline_events`）
-- 后续章节重提取会 **覆盖** 人工修订（delete-and-recreate）
-- UX 层面已通过显式提示告知用户覆盖风险
-- 架构上无独立的 durable override 层
+- `character_states` 和 `timeline_events` 新增 `source` 字段（`'extracted'` | `'manual'`）
+- 提取时仅删除 `source='extracted'` 的记录，手动创建或编辑的记录标记为 `source='manual'` 不受影响
+- UX 层面已更新提示文案，反映当前保护策略
 
 ### 流式内容校验边界
 
