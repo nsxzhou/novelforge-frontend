@@ -27,20 +27,20 @@ export function addProvider(input: AddProviderInput): Promise<LLMProvider> {
 }
 
 export function updateProvider(id: string, input: UpdateProviderInput): Promise<LLMProvider> {
-  return request<LLMProvider>(`/llm/providers/${id}`, {
+  return request<LLMProvider>(`/llm/providers/${encodeURIComponent(id)}`, {
     method: 'PUT',
     body: input,
   })
 }
 
 export function deleteProvider(id: string): Promise<void> {
-  return request<void>(`/llm/providers/${id}`, {
+  return request<void>(`/llm/providers/${encodeURIComponent(id)}`, {
     method: 'DELETE',
   })
 }
 
 export function testProvider(id: string): Promise<LLMProviderTestResult> {
-  return request<LLMProviderTestResult>(`/llm/providers/${id}/test`, {
+  return request<LLMProviderTestResult>(`/llm/providers/${encodeURIComponent(id)}/test`, {
     method: 'POST',
   })
 }

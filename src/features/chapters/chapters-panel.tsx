@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  CheckCircle2, RefreshCcw, Save, Square, WandSparkles,
+  CheckCircle2, RefreshCcw, Save, Square, WandSparkles, Sparkles,
   Plus, BookOpen, FileText, AlignLeft, Undo2, ArrowLeftRight, Maximize2,
 } from 'lucide-react'
 import { motion } from 'framer-motion'
@@ -44,10 +44,12 @@ import { TiptapEditor, type TextSelection } from './components/tiptap-editor'
 import { RewritePopover } from './components/rewrite-popover'
 import { DiffEditor } from './components/diff-editor'
 import { ReviewPanel } from './components/review-panel'
+import { PolishPanel } from './components/polish-panel'
 
 const createSchema = z.object({
   ordinal: z.coerce.number().int().min(1, '请选择章节计划'),
   instruction: z.string().trim().min(1, '请填写创作要求'),
+  pov_character: z.string().optional(),
 })
 
 const continueSchema = z.object({
@@ -95,6 +97,7 @@ export function ChaptersPanel({
   const [showDiffEditor, setShowDiffEditor] = useState(false)
   const [diffOriginalText, setDiffOriginalText] = useState('')
   const [diffRewrittenText, setDiffRewrittenText] = useState('')
+  const [showPolishPanel, setShowPolishPanel] = useState(false)
 
   const selectedChapterId = controlledSelectedChapterId ?? internalSelectedChapterId
 
@@ -118,7 +121,7 @@ export function ChaptersPanel({
 
   const createForm = useForm<CreateFormValue>({
     resolver: zodResolver(createSchema),
-    defaultValues: { ordinal: 1, instruction: '' },
+    defaultValues: { ordinal: 1, instruction: '', pov_character: '' },
   })
 
   const continueForm = useForm<ContinueFormValue>({
@@ -279,6 +282,10 @@ export function ChaptersPanel({
     () => (assetsQuery.data ?? []).some((asset) => asset.type === 'outline'),
     [assetsQuery.data],
   )
+  const characterNames = useMemo(
+    () => (assetsQuery.data ?? []).filter((asset) => asset.type === 'character').map((asset) => asset.title),
+    [assetsQuery.data],
+  )
   const plannedChapters = useMemo(
     () => flattenOutlineChapters(outlineData),
     [outlineData],
@@ -336,6 +343,7 @@ export function ChaptersPanel({
     setSelection(null)
     setShowRewritePopover(false)
     setShowDiffEditor(false)
+    setShowPolishPanel(false)
     setDiffOriginalText('')
     setDiffRewrittenText('')
   }, [selectedChapterId])
@@ -395,9 +403,16 @@ export function ChaptersPanel({
                   <p className="text-sm font-medium tracking-tight truncate">
                     第{chapter.ordinal}章 · {chapter.title}
                   </p>
-                  <Badge variant={isConfirmed ? 'success' : 'warning'} className="text-[10px] shrink-0">
-                    {isConfirmed ? '已确认' : '草稿'}
-                  </Badge>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {chapter.pov_character && (
+                      <Badge variant="default" className="text-[10px]">
+                        {chapter.pov_character} 视角
+                      </Badge>
+                    )}
+                    <Badge variant={isConfirmed ? 'success' : 'warning'} className="text-[10px]">
+                      {isConfirmed ? '已确认' : '草稿'}
+                    </Badge>
+                  </div>
                 </div>
                 <p className="mt-0.5 text-[11px] text-muted-foreground">
                   {wordCount(chapter.content)} 字
@@ -493,6 +508,17 @@ export function ChaptersPanel({
                   >
                     沉浸模式
                   </Button>
+                  {selectedChapter.content && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowPolishPanel(!showPolishPanel)}
+                      leftIcon={<Sparkles className="h-3.5 w-3.5" />}
+                      title="消痕润色"
+                    >
+                      消痕润色
+                    </Button>
+                  )}
                   {hasUnsavedChanges && isDraft && (
                     <Button variant="secondary" size="sm" loading={saveMutation.isPending} onClick={handleSave} leftIcon={<Save className="h-3.5 w-3.5" />}>
                       保存
@@ -565,6 +591,19 @@ export function ChaptersPanel({
                 selectedText={selection.text}
                 onClose={() => setShowRewritePopover(false)}
                 onComplete={handleRewriteComplete}
+              />
+            )}
+
+            {/* Polish panel */}
+            {showPolishPanel && selectedChapterId && selectedChapter?.content && (
+              <PolishPanel
+                chapterId={selectedChapterId}
+                currentContent={editedContent ?? selectedChapter.content}
+                onAccept={(polishedContent) => {
+                  saveMutation.mutate({ chapterId: selectedChapterId, content: polishedContent })
+                  setShowPolishPanel(false)
+                }}
+                onClose={() => setShowPolishPanel(false)}
               />
             )}
 
@@ -652,6 +691,16 @@ export function ChaptersPanel({
               })()}
             </div>
           ) : null}
+          {characterNames.length > 0 && (
+            <FormField label="视角角色">
+              <Select {...createForm.register('pov_character')}>
+                <option value="">全知视角</option>
+                {characterNames.map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </Select>
+            </FormField>
+          )}
           <FormField label="创作要求" error={createForm.formState.errors.instruction?.message}>
             <Textarea rows={4} {...createForm.register('instruction')} placeholder="描述本章生成要求，例如视角、节奏、重点冲突" />
           </FormField>

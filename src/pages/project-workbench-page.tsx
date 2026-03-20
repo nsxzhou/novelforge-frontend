@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Download, PencilLine, Trash2, X, Check,
   LayoutGrid, Boxes, BookOpen, Wrench, GitBranch,
-  FileText, Calendar, ChevronRight, Eye,
+  FileText, Calendar, ChevronRight, Eye, Share2, BarChart3,
 } from 'lucide-react'
 import { getProject, updateProject, deleteProject } from '@/shared/api/projects'
 import { listAllAssets } from '@/shared/api/assets'
@@ -29,10 +29,12 @@ import { ChaptersPanel } from '@/features/chapters/chapters-panel'
 import { MemoryPanel } from '@/features/memory/memory-panel'
 import { PromptsPanel } from '@/features/prompts/prompts-panel'
 import { ForeshadowingPanel } from '@/features/foreshadowing/foreshadowing-panel'
+import { KGPanel } from '@/features/knowledge-graph/kg-panel'
+import { CostDashboard } from '@/features/metrics/cost-dashboard'
 import { getErrorMessage } from '@/shared/lib/error-message'
 import { getProjectStatusLabel, formatDate } from '@/shared/lib/format'
 
-type TabKey = 'overview' | 'assets' | 'chapters' | 'foreshadowing' | 'memory' | 'prompts'
+type TabKey = 'overview' | 'assets' | 'chapters' | 'foreshadowing' | 'knowledge-graph' | 'memory' | 'prompts' | 'metrics'
 
 function getProjectStatusVariant(status: string) {
   switch (status) {
@@ -124,7 +126,7 @@ export function ProjectWorkbenchPage() {
     })
   }
 
-  async function handleExport(format: 'md' | 'txt') {
+  async function handleExport(format: 'md' | 'txt' | 'epub') {
     if (!projectId) return
     setExportLoading(true)
     try {
@@ -142,8 +144,10 @@ export function ProjectWorkbenchPage() {
     { key: 'assets', label: '设定工坊', icon: <Boxes className="h-4 w-4" />, count: assetsQuery.data?.length },
     { key: 'chapters', label: '章节', icon: <BookOpen className="h-4 w-4" />, count: chaptersQuery.data?.length },
     { key: 'foreshadowing', label: '伏笔', icon: <Eye className="h-4 w-4" /> },
+    { key: 'knowledge-graph', label: '知识图谱', icon: <Share2 className="h-4 w-4" /> },
     { key: 'memory', label: '记忆层', icon: <GitBranch className="h-4 w-4" /> },
     { key: 'prompts', label: 'Prompts', icon: <Wrench className="h-4 w-4" /> },
+    { key: 'metrics', label: '指标', icon: <BarChart3 className="h-4 w-4" /> },
   ]
 
   function openChapterWorkbench(chapterId: string) {
@@ -153,7 +157,7 @@ export function ProjectWorkbenchPage() {
 
   useEffect(() => {
     const tab = searchParams.get('tab')
-    if (tab === 'overview' || tab === 'assets' || tab === 'chapters' || tab === 'foreshadowing' || tab === 'memory' || tab === 'prompts') {
+    if (tab === 'overview' || tab === 'assets' || tab === 'chapters' || tab === 'foreshadowing' || tab === 'knowledge-graph' || tab === 'memory' || tab === 'prompts' || tab === 'metrics') {
       setActiveTab(tab)
     }
   }, [searchParams])
@@ -328,6 +332,8 @@ export function ProjectWorkbenchPage() {
         )
       case 'foreshadowing':
         return <ForeshadowingPanel projectId={project.id} />
+      case 'knowledge-graph':
+        return <KGPanel projectId={project.id} />
       case 'memory':
         return (
           <MemoryPanel
@@ -338,6 +344,8 @@ export function ProjectWorkbenchPage() {
         )
       case 'prompts':
         return <PromptsPanel projectId={project.id} />
+      case 'metrics':
+        return <CostDashboard projectId={project.id} />
       default:
         return null
     }
@@ -393,6 +401,12 @@ export function ProjectWorkbenchPage() {
               onClick={() => handleExport('txt')}
             >
               纯文本 (.txt)
+            </DropdownItem>
+            <DropdownItem
+              icon={<BookOpen className="h-4 w-4" />}
+              onClick={() => handleExport('epub')}
+            >
+              EPUB (.epub)
             </DropdownItem>
           </Dropdown>
         </div>

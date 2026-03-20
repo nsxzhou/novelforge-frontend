@@ -54,6 +54,7 @@ export type Chapter = {
   current_draft_id?: string
   current_draft_confirmed_at?: string
   current_draft_confirmed_by?: string
+  pov_character?: string
   created_at: string
   updated_at: string
 }
@@ -204,4 +205,61 @@ export type ReviewResult = {
   writing_quality: ScoreDimension
   overall_score: number
   summary: string
+}
+
+// Knowledge Graph types
+export type KGNodeType = 'character' | 'location' | 'event' | 'item'
+export type KGEdgeType = 'relation' | 'located_at' | 'involved_in' | 'causes' | 'owns' | 'custom'
+
+export type KGNode = {
+  id: string
+  project_id: string
+  type: KGNodeType
+  name: string
+  properties: string
+  source_ref: string
+  created_at: string
+  updated_at: string
+}
+
+export type KGEdge = {
+  id: string
+  project_id: string
+  source_id: string
+  target_id: string
+  type: KGEdgeType
+  label: string
+  properties: string
+  created_at: string
+  updated_at: string
+}
+
+// Cost Dashboard types
+export type ProjectTokens = {
+  project_id: string
+  project_name: string
+  total_tokens: number
+  count: number
+}
+
+export type DailyTokens = {
+  date: string
+  total_tokens: number
+  count: number
+}
+
+export type KindTokens = {
+  kind: string
+  total_tokens: number
+  count: number
+}
+
+export type DashboardSummary = {
+  total_tokens: number
+  total_generations: number
+  success_rate: number
+  avg_duration_ms: number
+  tokens_by_project: ProjectTokens[]
+  tokens_by_day: DailyTokens[]
+  tokens_by_kind: KindTokens[]
 }

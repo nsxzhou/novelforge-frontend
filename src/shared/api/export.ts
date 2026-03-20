@@ -1,10 +1,10 @@
 import { requestRaw } from '@/shared/api/http-client'
 
-export async function exportProject(projectId: string, format: 'md' | 'txt' = 'md'): Promise<void> {
+export async function exportProject(projectId: string, format: 'md' | 'txt' | 'epub' = 'md'): Promise<void> {
   const response = await requestRaw(`/projects/${projectId}/export?format=${format}`, {
     method: 'GET',
     headers: {
-      Accept: 'text/plain, text/markdown, application/octet-stream',
+      Accept: 'text/plain, text/markdown, application/epub+zip, application/octet-stream',
     },
   })
 

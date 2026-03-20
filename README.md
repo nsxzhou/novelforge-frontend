@@ -56,7 +56,7 @@ npm run dev
 |------|------|------|
 | `/` | HomePage | 项目仪表盘：统计卡片 + 三列看板（草稿/进行中/已归档） |
 | `/new-project` | InspirationPage | 新建项目中心：AI 组合创建或手动创建 |
-| `/projects/:id` | ProjectWorkbenchPage | 项目工作台：概览 / 设定工坊 / 章节 / 记忆层 / 伏笔 / Prompts 六个 Tab |
+| `/projects/:id` | ProjectWorkbenchPage | 项目工作台：概览 / 设定工坊 / 章节 / 伏笔 / 记忆层 / Prompts / 知识图谱 / 指标 八个 Tab |
 | `/settings` | SettingsPage | 全局设置：LLM Provider 管理 |
 | `*` | NotFoundPage | 404 |
 
@@ -75,6 +75,8 @@ src/
 │   ├── assets/             #   资产管理（CRUD + AI 生成 + 结构化表单）
 │   ├── chapters/           #   章节编辑（Tiptap 编辑器 + AI 续写/改写 + AI 评审）
 │   ├── foreshadowing/      #   伏笔管理（时间线可视化 + CRUD）
+│   ├── knowledge-graph/    #   知识图谱（力导向图可视化 + 节点 CRUD + 同步）
+│   ├── metrics/            #   成本看板（统计卡片 + CSS 柱状图）
 │   ├── memory/             #   记忆工作区（状态/时间线/图谱三视图 + 关系编辑）
 │   ├── prompts/            #   Prompt 模板管理
 │   ├── projects/           #   项目编辑面板
@@ -119,7 +121,11 @@ src/
 - **章节评审**：AI 多维度评审面板（逻辑一致性/角色忠实度/节奏感/文笔质量 + 总评），评分进度条 + 颜色编码
 - **Prompt 管理**：查看/覆盖/重置项目级 Prompt 模板（后端对变量名做白名单校验，拒绝引用不存在的变量）
 - **LLM 配置**：Provider 增删改查、启用/禁用切换
-- **导出**：项目导出为 Markdown 或纯文本文件下载
+- **导出**：项目导出为 Markdown、纯文本或 EPUB 文件下载
+- **知识图谱**：角色-地点-事件-物品关系网络可视化（react-force-graph-2d 力导向图），节点 CRUD + 从现有数据同步构建
+- **消痕润色**：AI 文本风格优化，SSE 流式输出，原文与润色后文本并排对比，支持采纳或放弃
+- **视角过滤**：章节创建时可指定 POV 角色，生成时自动过滤非 POV 角色可感知的信息
+- **成本看板**：token 消耗、生成次数、成功率、平均耗时统计，按日趋势 CSS 柱状图，按类型/项目分组
 - **响应式**：桌面顶部导航 / 移动端 hamburger menu
 
 ## 已知限制
@@ -181,6 +187,16 @@ src/
 | **伏笔时间线视图** | `features/foreshadowing/` 伏笔 CRUD + 章节序列时间线可视化 |
 | **章节质量评审面板** | `features/chapters/components/review-panel.tsx` AI 多维度评分展示 |
 
+### 已完成 ✓（Phase 3）
+
+| 项目 | 实现位置 |
+|------|----------|
+| **知识图谱可视化** | `features/knowledge-graph/` 力导向图 + 节点 CRUD + 同步构建 |
+| **消痕润色面板** | `features/chapters/components/polish-panel.tsx` SSE 流式 + 原文对比 |
+| **视角角色选择** | `features/chapters/chapters-panel.tsx` POV 选择器 + 章节列表 POV 标签 |
+| **EPUB 导出** | `shared/api/export.ts` 导出下拉增加 EPUB 选项 |
+| **成本看板** | `features/metrics/` 统计卡片 + CSS 柱状图（无图表库依赖） |
+
 ### 远期：高级交互
 
-6. **AI 修改消痕对比** — 并排展示原始 AI 生成文本与消痕润色后文本，高亮标注修改位置，支持选择性采纳。当前仅有改写功能，缺少对比展示。
+6. **AI 修改消痕对比增强** — 在消痕润色基础上增加 diff 高亮标注修改位置，支持逐段选择性采纳。

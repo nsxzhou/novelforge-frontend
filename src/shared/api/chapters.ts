@@ -1,5 +1,5 @@
 import { request } from '@/shared/api/http-client'
-import { streamRequestWithSchema, type SSECallbacks } from '@/shared/api/sse-client'
+import { streamRequest, streamRequestWithSchema, type SSECallbacks } from '@/shared/api/sse-client'
 import type { Chapter, GenerationRecord, ReviewResult } from '@/shared/api/types'
 import { chapterGenerationResponseSchema, suggestResponseSchema } from '@/shared/api/runtime-schemas'
 
@@ -9,6 +9,7 @@ export type ChapterGenerationResponse = { chapter: Chapter; generation_record: G
 export type CreateChapterInput = {
   ordinal: number
   instruction: string
+  pov_character?: string
 }
 
 export type ContinueChapterInput = { instruction: string }
@@ -128,6 +129,7 @@ export function suggestChapterStream(
 export type UpdateChapterInput = {
   title?: string
   content?: string
+  pov_character?: string
 }
 
 export function updateChapter(
@@ -144,4 +146,22 @@ export function reviewChapter(chapterId: string): Promise<ReviewResult> {
   return request<ReviewResult>(`/chapters/${chapterId}/review`, {
     method: 'POST',
   })
+}
+
+export type PolishResponse = {
+  original_content: string
+  polished_content: string
+}
+
+export function polishChapterStream(
+  chapterId: string,
+  callbacks: SSECallbacks<PolishResponse>,
+  signal?: AbortSignal,
+): void {
+  streamRequest<PolishResponse>(
+    `/chapters/${chapterId}/polish/stream`,
+    {},
+    callbacks,
+    signal,
+  )
 }

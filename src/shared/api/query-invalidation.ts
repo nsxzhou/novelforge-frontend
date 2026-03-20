@@ -83,3 +83,13 @@ export async function invalidateForeshadowings(
 ): Promise<void> {
   await queryClient.invalidateQueries({ queryKey: queryKeys.foreshadowings(projectId) })
 }
+
+export async function invalidateKnowledgeGraph(
+  queryClient: QueryClient,
+  projectId: string,
+): Promise<void> {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: queryKeys.kgNodes(projectId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.kgEdges(projectId) }),
+  ])
+}
