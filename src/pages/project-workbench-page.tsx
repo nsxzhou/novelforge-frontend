@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Download, PencilLine, Trash2, X, Check,
   LayoutGrid, Boxes, BookOpen, Wrench, GitBranch,
-  FileText, Calendar, ChevronRight,
+  FileText, Calendar, ChevronRight, Eye,
 } from 'lucide-react'
 import { getProject, updateProject, deleteProject } from '@/shared/api/projects'
 import { listAllAssets } from '@/shared/api/assets'
@@ -28,10 +28,11 @@ import { AssetsPanel } from '@/features/assets/assets-panel'
 import { ChaptersPanel } from '@/features/chapters/chapters-panel'
 import { MemoryPanel } from '@/features/memory/memory-panel'
 import { PromptsPanel } from '@/features/prompts/prompts-panel'
+import { ForeshadowingPanel } from '@/features/foreshadowing/foreshadowing-panel'
 import { getErrorMessage } from '@/shared/lib/error-message'
 import { getProjectStatusLabel, formatDate } from '@/shared/lib/format'
 
-type TabKey = 'overview' | 'assets' | 'chapters' | 'memory' | 'prompts'
+type TabKey = 'overview' | 'assets' | 'chapters' | 'foreshadowing' | 'memory' | 'prompts'
 
 function getProjectStatusVariant(status: string) {
   switch (status) {
@@ -140,6 +141,7 @@ export function ProjectWorkbenchPage() {
     { key: 'overview', label: '概览', icon: <LayoutGrid className="h-4 w-4" /> },
     { key: 'assets', label: '设定工坊', icon: <Boxes className="h-4 w-4" />, count: assetsQuery.data?.length },
     { key: 'chapters', label: '章节', icon: <BookOpen className="h-4 w-4" />, count: chaptersQuery.data?.length },
+    { key: 'foreshadowing', label: '伏笔', icon: <Eye className="h-4 w-4" /> },
     { key: 'memory', label: '记忆层', icon: <GitBranch className="h-4 w-4" /> },
     { key: 'prompts', label: 'Prompts', icon: <Wrench className="h-4 w-4" /> },
   ]
@@ -151,7 +153,7 @@ export function ProjectWorkbenchPage() {
 
   useEffect(() => {
     const tab = searchParams.get('tab')
-    if (tab === 'overview' || tab === 'assets' || tab === 'chapters' || tab === 'memory' || tab === 'prompts') {
+    if (tab === 'overview' || tab === 'assets' || tab === 'chapters' || tab === 'foreshadowing' || tab === 'memory' || tab === 'prompts') {
       setActiveTab(tab)
     }
   }, [searchParams])
@@ -324,6 +326,8 @@ export function ProjectWorkbenchPage() {
             onSelectedChapterChange={setSelectedChapterId}
           />
         )
+      case 'foreshadowing':
+        return <ForeshadowingPanel projectId={project.id} />
       case 'memory':
         return (
           <MemoryPanel

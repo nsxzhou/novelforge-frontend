@@ -1,6 +1,6 @@
 import { request } from '@/shared/api/http-client'
 import { streamRequestWithSchema, type SSECallbacks } from '@/shared/api/sse-client'
-import type { Chapter, GenerationRecord } from '@/shared/api/types'
+import type { Chapter, GenerationRecord, ReviewResult } from '@/shared/api/types'
 import { chapterGenerationResponseSchema, suggestResponseSchema } from '@/shared/api/runtime-schemas'
 
 type ChapterListResponse = { chapters: Chapter[] }
@@ -137,5 +137,11 @@ export function updateChapter(
   return request<Chapter>(`/chapters/${chapterId}`, {
     method: 'PUT',
     body: input,
+  })
+}
+
+export function reviewChapter(chapterId: string): Promise<ReviewResult> {
+  return request<ReviewResult>(`/chapters/${chapterId}/review`, {
+    method: 'POST',
   })
 }

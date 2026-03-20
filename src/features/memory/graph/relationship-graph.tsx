@@ -1,7 +1,7 @@
 import { useCallback, useRef } from 'react'
 import ForceGraph2D from 'react-force-graph-2d'
 import type { LinkObject, NodeObject } from 'react-force-graph-2d'
-import { Search, RotateCcw } from 'lucide-react'
+import { PencilLine, Plus, Search, RotateCcw } from 'lucide-react'
 import { Input } from '@/shared/ui/input'
 import { Button } from '@/shared/ui/button'
 import { Badge } from '@/shared/ui/badge'
@@ -9,8 +9,10 @@ import { EmptyState } from '@/shared/ui/empty-state'
 import type { CharacterState, RelationType, RelationTypeConfig } from '@/shared/api/types'
 import { useGraphData, type ForceGraphLink, type ForceGraphNode } from './use-graph-data'
 import { RelationLegend } from './relation-legend'
+import { RelationModal } from './relation-modal'
 
 interface RelationshipGraphProps {
+  projectId: string
   scopedStates: CharacterState[]
   knownCharacterNames: Set<string>
   relationTypes: RelationTypeConfig[]
@@ -21,6 +23,7 @@ type GraphCanvasNode = NodeObject<ForceGraphNode>
 type GraphCanvasLink = LinkObject<ForceGraphNode, ForceGraphLink>
 
 export function RelationshipGraph({
+  projectId,
   scopedStates,
   knownCharacterNames,
   relationTypes,
@@ -38,6 +41,10 @@ export function RelationshipGraph({
     filterTypes,
     setFilterTypes,
     graphRef,
+    editingRelation,
+    onAddRelation,
+    onEditRelation,
+    onCloseRelationModal,
   } = useGraphData({ scopedStates, knownCharacterNames, relationTypes })
 
   // 切换过滤类型
@@ -347,6 +354,15 @@ export function RelationshipGraph({
                       {relatedLinks.map((link, idx) => {
                         const sourceId = typeof link.source === 'string' ? link.source : link.source.id
                         const targetId = typeof link.target === 'string' ? link.target : link.target.id
+                        const isSource = sourceId === selectedNodeId
+                        const relation = link.data.relation
+                        // Find the relation index in the source state's relationships array
+                        const relSourceState = scopedStates.find((s) => s.character_name === sourceId)
+                        const relIndex = relSourceState
+                          ? relSourceState.relationships.findIndex(
+                              (r) => r.target === relation.target && r.type === relation.type,
+                            )
+                          : -1
                         return (
                           <Badge
                             key={`${sourceId}-${targetId}-${idx}`}
@@ -357,14 +373,37 @@ export function RelationshipGraph({
                               className="h-1.5 w-1.5 rounded-full"
                               style={{ backgroundColor: link.color }}
                             />
-                            {sourceId === selectedNodeId ? targetId : sourceId}
+                            {isSource ? targetId : sourceId}
                             <span className="text-muted-foreground">·</span>
                             {link.label}
+                            {isSource && relSourceState && relIndex >= 0 && (
+                              <button
+                                type="button"
+                                className="ml-0.5 inline-flex items-center rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+                                onClick={() => onEditRelation(sourceId, relation, relIndex)}
+                                title="编辑关系"
+                              >
+                                <PencilLine className="h-3 w-3" />
+                              </button>
+                            )}
                           </Badge>
                         )
                       })}
                     </div>
                   </div>
+                )}
+
+                {/* 添加关系按钮 */}
+                {selectedState && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => onAddRelation(selectedNode.name)}
+                  >
+                    <Plus className="mr-1.5 h-4 w-4" />
+                    添加关系
+                  </Button>
                 )}
               </div>
             </div>
@@ -377,6 +416,21 @@ export function RelationshipGraph({
           )}
         </div>
       </div>
+
+      {/* 关系编辑弹窗 */}
+      {editingRelation && (
+        <RelationModal
+          open={true}
+          onClose={onCloseRelationModal}
+          projectId={projectId}
+          scopedStates={scopedStates}
+          knownCharacterNames={knownCharacterNames}
+          relationTypes={relationTypes}
+          sourceName={editingRelation.sourceName}
+          existingRelation={editingRelation.relation}
+          existingRelationIndex={editingRelation.relationIndex}
+        />
+      )}
     </div>
   )
 }

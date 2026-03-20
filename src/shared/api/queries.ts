@@ -14,4 +14,5 @@ export const queryKeys = {
   timeline: (projectId: string) => ['timeline', projectId] as const,
   llmProviders: ['llmProviders'] as const,
   prompts: (projectId: string) => ['prompts', projectId] as const,
+  foreshadowings: (projectId: string) => ['foreshadowings', projectId] as const,
 }

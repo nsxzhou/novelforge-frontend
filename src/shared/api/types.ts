@@ -176,3 +176,32 @@ export type ProjectStats = {
   chapter_count: number
   word_count: number
 }
+
+export type ForeshadowingStatus = 'planted' | 'resolved' | 'overdue'
+
+export type Foreshadowing = {
+  id: string
+  project_id: string
+  chapter_planted_id: string
+  chapter_expected_resolve_id?: string
+  chapter_actual_resolve_id?: string
+  title: string
+  description: string
+  status: ForeshadowingStatus
+  created_at: string
+  updated_at: string
+}
+
+export type ScoreDimension = {
+  score: number
+  comment: string
+}
+
+export type ReviewResult = {
+  logic_consistency: ScoreDimension
+  character_fidelity: ScoreDimension
+  pacing: ScoreDimension
+  writing_quality: ScoreDimension
+  overall_score: number
+  summary: string
+}

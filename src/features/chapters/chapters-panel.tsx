@@ -43,6 +43,7 @@ import { flattenOutlineChapters, type OutlineData } from '@/features/assets/sche
 import { TiptapEditor, type TextSelection } from './components/tiptap-editor'
 import { RewritePopover } from './components/rewrite-popover'
 import { DiffEditor } from './components/diff-editor'
+import { ReviewPanel } from './components/review-panel'
 
 const createSchema = z.object({
   ordinal: z.coerce.number().int().min(1, '请选择章节计划'),
@@ -604,6 +605,9 @@ export function ChaptersPanel({
                 )}
               </div>
             </Card>
+
+            {/* AI review */}
+            <ReviewPanel chapterId={selectedChapter.id} />
           </>
         )}
 

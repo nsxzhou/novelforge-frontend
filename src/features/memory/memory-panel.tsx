@@ -1178,6 +1178,7 @@ export function MemoryPanel({
             <ErrorState text={getErrorMessage(activeStateQuery.error)} className="flex w-full" />
           ) : (
             <RelationshipGraph
+              projectId={projectId}
               scopedStates={scopedStates}
               knownCharacterNames={knownCharacterNames}
               relationTypes={relationTypes}

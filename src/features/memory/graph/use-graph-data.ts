@@ -32,6 +32,12 @@ interface UseGraphDataParams {
   relationTypes: RelationTypeConfig[]
 }
 
+export interface EditingRelation {
+  sourceName: string
+  relation?: CharacterRelation
+  relationIndex?: number
+}
+
 interface UseGraphDataResult {
   nodes: ForceGraphNode[]
   links: ForceGraphLink[]
@@ -43,6 +49,10 @@ interface UseGraphDataResult {
   filterTypes: Set<RelationType>
   setFilterTypes: (types: Set<RelationType> | ((prev: Set<RelationType>) => Set<RelationType>)) => void
   graphRef: React.MutableRefObject<ForceGraphMethods<ForceGraphNode, ForceGraphLink> | null>
+  editingRelation: EditingRelation | null
+  onAddRelation: (sourceName: string) => void
+  onEditRelation: (sourceName: string, relation: CharacterRelation, relationIndex: number) => void
+  onCloseRelationModal: () => void
 }
 
 export function useGraphData({
@@ -122,6 +132,21 @@ export function useGraphData({
     setSelectedNodeId(null)
   }, [])
 
+  // 关系编辑状态
+  const [editingRelation, setEditingRelation] = useState<EditingRelation | null>(null)
+
+  const onAddRelation = useCallback((sourceName: string) => {
+    setEditingRelation({ sourceName })
+  }, [])
+
+  const onEditRelation = useCallback((sourceName: string, relation: CharacterRelation, relationIndex: number) => {
+    setEditingRelation({ sourceName, relation, relationIndex })
+  }, [])
+
+  const onCloseRelationModal = useCallback(() => {
+    setEditingRelation(null)
+  }, [])
+
   return {
     nodes,
     links,
@@ -133,5 +158,9 @@ export function useGraphData({
     filterTypes,
     setFilterTypes,
     graphRef,
+    editingRelation,
+    onAddRelation,
+    onEditRelation,
+    onCloseRelationModal,
   }
 }
