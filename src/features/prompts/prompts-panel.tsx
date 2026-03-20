@@ -33,7 +33,16 @@ const capabilityLabels: Record<string, string> = {
   chapter_generation: '章节生成',
   chapter_continuation: '章节续写',
   chapter_rewrite: '章节改写',
+  chapter_suggestion: '章节建议',
   project_guided_candidates: '组合式创建候选',
+  asset_refinement: '资产生成优化',
+  brainstorm_story_architect: '头脑风暴故事架构师',
+  brainstorm_world_architect: '头脑风暴世界架构师',
+  brainstorm_character_designer: '头脑风暴角色设计师',
+  brainstorm_cross_review: '头脑风暴交叉评审',
+  brainstorm_chief_editor: '头脑风暴总编辑',
+  chapter_review: '章节评审',
+  trace_removal: '痕迹去除',
 }
 
 function getCapabilityLabel(capability: string): string {
