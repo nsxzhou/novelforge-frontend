@@ -1,5 +1,7 @@
+import { createRequestSignal, getTransportErrorKind } from '@/shared/api/http-client'
 import { getClientUserId } from '@/shared/api/client-identity'
 import { appEnv } from '@/shared/config/env'
+import { getTimeoutPolicy } from '@/shared/api/llm-providers'
 import type { ZodType } from 'zod'
 
 export type SSECallbacks<T> = {
@@ -13,6 +15,7 @@ type StreamRequestOptions<T> = {
   doneEventName?: string
   errorEventName?: string
   timeoutMs?: number
+  timeoutMode?: 'single' | 'brainstorm'
   onEvent?: (eventType: string, rawData: string) => void
   parseDone?: (rawData: string) => T
 }
@@ -46,19 +49,20 @@ export function streamRequest<T>(
   options: StreamRequestOptions<T> = {},
 ): void {
   const url = `${appEnv.apiBaseUrl}${path}`
-  const timeoutMs = options.timeoutMs ?? 300_000
-  const timeoutSignal = AbortSignal.timeout(timeoutMs)
-  const requestSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal
+  resolveTimeoutMs(options)
+    .then((timeoutMs) => {
+      const requestSignal = createRequestSignal(timeoutMs, signal)
 
-  fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-User-ID': getClientUserId(),
-    },
-    body: JSON.stringify(body),
-    signal: requestSignal,
-  })
+      return fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-ID': getClientUserId(),
+        },
+        body: JSON.stringify(body),
+        signal: requestSignal,
+      })
+    })
     .then(async (response) => {
       if (!response.ok) {
         const text = await response.text().catch(() => `HTTP ${response.status}`)
@@ -109,7 +113,7 @@ export function streamRequest<T>(
     })
     .catch((err: unknown) => {
       if (signal?.aborted) return
-      callbacks.onError(err instanceof Error ? err.message : 'Stream request failed')
+      callbacks.onError(normalizeStreamError(err))
     })
 }
 
@@ -138,4 +142,32 @@ function parseErrorMessage(rawData: string): string {
     // ignore invalid json
   }
   return rawData
+}
+
+async function resolveTimeoutMs<T>(options: StreamRequestOptions<T>): Promise<number> {
+  if (options.timeoutMs !== undefined) {
+    return options.timeoutMs
+  }
+  const policy = await getTimeoutPolicy()
+  const timeoutSeconds = options.timeoutMode === 'brainstorm'
+    ? policy.brainstorm_timeout_seconds
+    : policy.single_call_timeout_seconds
+  return timeoutSeconds * 1000
+}
+
+function normalizeStreamError(error: unknown): string {
+  const kind = getTransportErrorKind(error)
+  if (kind === 'timeout') {
+    return 'AI 请求超时，请增大 Provider 超时时间后重试。'
+  }
+  if (kind === 'cancelled') {
+    return '请求已取消。'
+  }
+  if (kind === 'disconnected') {
+    return 'AI 连接已中断，请重试。'
+  }
+  if (error instanceof Error) {
+    return error.message
+  }
+  return 'Stream request failed'
 }
