@@ -96,7 +96,7 @@ export function brainstormGuidedProjectStream(
     signal,
     {
       doneEventName: 'result',
-      timeoutMs: 300_000,
+      timeoutMode: 'brainstorm',
       onEvent: (eventType, rawData) => {
         if (eventType === 'result' || eventType === 'error') {
           return

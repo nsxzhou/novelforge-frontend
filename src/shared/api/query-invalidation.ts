@@ -48,7 +48,10 @@ export async function invalidateProjectPrompts(
 export async function invalidateProviders(
   queryClient: QueryClient,
 ): Promise<void> {
-  await queryClient.invalidateQueries({ queryKey: queryKeys.llmProviders })
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: queryKeys.llmProviders }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.llmTimeoutPolicy }),
+  ])
 }
 
 export async function invalidateCharacterStates(

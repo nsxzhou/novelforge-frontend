@@ -13,6 +13,7 @@ export const queryKeys = {
   relationTypes: ['relationTypes'] as const,
   timeline: (projectId: string) => ['timeline', projectId] as const,
   llmProviders: ['llmProviders'] as const,
+  llmTimeoutPolicy: ['llmTimeoutPolicy'] as const,
   prompts: (projectId: string) => ['prompts', projectId] as const,
   foreshadowings: (projectId: string) => ['foreshadowings', projectId] as const,
   kgNodes: (projectId: string) => ['kgNodes', projectId] as const,
