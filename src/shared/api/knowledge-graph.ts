@@ -56,6 +56,6 @@ export function deleteKGEdge(projectId: string, edgeId: string): Promise<void> {
   return request(`/projects/${projectId}/kg/edges/${edgeId}`, { method: 'DELETE' })
 }
 
-export function syncKnowledgeGraph(projectId: string): Promise<{ nodes_created: number; edges_created: number }> {
+export function syncKnowledgeGraph(projectId: string): Promise<{ status: string }> {
   return request(`/projects/${projectId}/kg/sync`, { method: 'POST' })
 }

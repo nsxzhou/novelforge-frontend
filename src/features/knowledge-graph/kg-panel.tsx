@@ -61,9 +61,9 @@ export function KGPanel({ projectId }: KGPanelProps) {
 
   const syncMutation = useMutation({
     mutationFn: () => syncKnowledgeGraph(projectId),
-    onSuccess: async (data) => {
+    onSuccess: async () => {
       await invalidateKnowledgeGraph(queryClient, projectId)
-      toast(`同步完成：创建 ${data.nodes_created} 个节点，${data.edges_created} 条边`)
+      toast('同步完成')
     },
     onError: (err) => toast(getErrorMessage(err), 'error'),
   })
