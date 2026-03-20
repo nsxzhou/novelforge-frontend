@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   CheckCircle2, RefreshCcw, Save, Square, WandSparkles,
-  Plus, BookOpen, FileText, AlignLeft, Undo2,
+  Plus, BookOpen, FileText, AlignLeft, Undo2, ArrowLeftRight, Maximize2,
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { listAllAssets } from '@/shared/api/assets'
@@ -41,6 +42,7 @@ import { parseStructuredContent } from '@/features/assets/schemas/asset-content'
 import { flattenOutlineChapters, type OutlineData } from '@/features/assets/schemas/outline-schema'
 import { TiptapEditor, type TextSelection } from './components/tiptap-editor'
 import { RewritePopover } from './components/rewrite-popover'
+import { DiffEditor } from './components/diff-editor'
 
 const createSchema = z.object({
   ordinal: z.coerce.number().int().min(1, '请选择章节计划'),
@@ -74,6 +76,7 @@ export function ChaptersPanel({
   onSelectedChapterChange,
 }: ChaptersPanelProps) {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const { toast } = useToast()
   const [internalSelectedChapterId, setInternalSelectedChapterId] = useState<string | null>(null)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
@@ -87,6 +90,10 @@ export function ChaptersPanel({
   const [editedContent, setEditedContent] = useState<string | null>(null)
   const [selection, setSelection] = useState<TextSelection | null>(null)
   const [showRewritePopover, setShowRewritePopover] = useState(false)
+
+  const [showDiffEditor, setShowDiffEditor] = useState(false)
+  const [diffOriginalText, setDiffOriginalText] = useState('')
+  const [diffRewrittenText, setDiffRewrittenText] = useState('')
 
   const selectedChapterId = controlledSelectedChapterId ?? internalSelectedChapterId
 
@@ -198,10 +205,25 @@ export function ChaptersPanel({
 
   function handleRewriteSubmit(value: RewriteFormValue) {
     if (!selectedChapterId) { setError('请先选择章节。'); return }
+    const originalContent = selectedChapter?.content ?? ''
     startStream()
-    rewriteChapterStream(selectedChapterId, value, makeCallbacks(() => {
-      rewriteForm.reset({ target_text: '', instruction: '' })
-    }), abortRef.current!.signal)
+    rewriteChapterStream(selectedChapterId, value, {
+      ...makeCallbacks(() => {
+        rewriteForm.reset({ target_text: '', instruction: '' })
+      }),
+      onDone: async (result: ChapterGenerationResponse) => {
+        abortRef.current = null
+        setIsStreaming(false)
+        setSelectedChapterId(result.chapter.id)
+        setEditedContent(null)
+        setOperationResult(`改写完成，耗时 ${result.generation_record.duration_millis} ms`)
+        setDiffOriginalText(originalContent)
+        setDiffRewrittenText(result.chapter.content)
+        rewriteForm.reset({ target_text: '', instruction: '' })
+        await refreshChapters()
+        toast('改写完成，可对比查看更改')
+      },
+    }, abortRef.current!.signal)
   }
 
   const confirmMutation = useMutation({
@@ -285,6 +307,18 @@ export function ChaptersPanel({
     refreshChapters()
   }
 
+  function handleDiffAccept(mergedText: string) {
+    if (!selectedChapterId) return
+    setShowDiffEditor(false)
+    setDiffOriginalText('')
+    setDiffRewrittenText('')
+    saveMutation.mutate({ chapterId: selectedChapterId, content: mergedText })
+  }
+
+  function handleDiffCancel() {
+    setShowDiffEditor(false)
+  }
+
   useEffect(() => {
     if (!isStreaming) return
 
@@ -300,6 +334,9 @@ export function ChaptersPanel({
     setEditedContent(null)
     setSelection(null)
     setShowRewritePopover(false)
+    setShowDiffEditor(false)
+    setDiffOriginalText('')
+    setDiffRewrittenText('')
   }, [selectedChapterId])
 
   useEffect(() => {
@@ -389,9 +426,27 @@ export function ChaptersPanel({
       <div className="space-y-4">
         {error && <ErrorState text={error} />}
         {operationResult && !isStreaming && (
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-medium text-emerald-700">
-            {operationResult}
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 flex items-center justify-between">
+            <span className="text-sm font-medium text-emerald-700">{operationResult}</span>
+            {diffOriginalText && diffRewrittenText && !showDiffEditor && (
+              <Button variant="secondary" size="sm" onClick={() => setShowDiffEditor(true)}>
+                <ArrowLeftRight className="mr-1 h-3.5 w-3.5" />
+                对比更改
+              </Button>
+            )}
           </div>
+        )}
+
+        {/* Diff editor */}
+        {showDiffEditor && diffOriginalText && diffRewrittenText && (
+          <Card>
+            <DiffEditor
+              originalText={diffOriginalText}
+              rewrittenText={diffRewrittenText}
+              onAccept={handleDiffAccept}
+              onCancel={handleDiffCancel}
+            />
+          </Card>
         )}
 
         {/* Streaming output */}
@@ -428,6 +483,15 @@ export function ChaptersPanel({
                   {hasUnsavedChanges && <Badge variant="warning">未保存</Badge>}
                 </div>
                 <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => navigate(`/write/${selectedChapter.id}`)}
+                    leftIcon={<Maximize2 className="h-3.5 w-3.5" />}
+                    title="沉浸式写作"
+                  >
+                    沉浸模式
+                  </Button>
                   {hasUnsavedChanges && isDraft && (
                     <Button variant="secondary" size="sm" loading={saveMutation.isPending} onClick={handleSave} leftIcon={<Save className="h-3.5 w-3.5" />}>
                       保存
