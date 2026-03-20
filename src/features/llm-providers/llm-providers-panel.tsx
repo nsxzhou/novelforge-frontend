@@ -125,12 +125,13 @@ export function LLMProvidersPanel() {
   })
 
   const testMutation = useMutation({
-    mutationFn: (id: string) => testProvider(id),
+    mutationFn: ({ id, timeoutSeconds }: { id: string; timeoutSeconds: number }) =>
+      testProvider(id, timeoutSeconds),
     onMutate: (id) => {
-      setTestingProviderId(id)
+      setTestingProviderId(id.id)
       setTestResults((prev) => {
         const next = { ...prev }
-        delete next[id]
+        delete next[id.id]
         return next
       })
       setError(null)
@@ -147,12 +148,12 @@ export function LLMProvidersPanel() {
       }))
       toast(result.message)
     },
-    onError: (err, providerId) => {
+    onError: (err, variables) => {
       const message = getErrorMessage(err)
       setTestingProviderId(null)
       setTestResults((prev) => ({
         ...prev,
-        [providerId]: {
+        [variables.id]: {
           status: 'error',
           message,
         },
@@ -363,7 +364,7 @@ export function LLMProvidersPanel() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => testMutation.mutate(provider.id)}
+                      onClick={() => testMutation.mutate({ id: provider.id, timeoutSeconds: provider.timeout_seconds })}
                   loading={testingProviderId === provider.id}
                   leftIcon={
                     testingProviderId === provider.id ? (

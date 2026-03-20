@@ -78,7 +78,7 @@ describe('LLMProvidersPanel', () => {
     await user.click(screen.getAllByRole('button', { name: '测试' })[0])
 
     await waitFor(() => {
-      expect(testProviderMock).toHaveBeenCalledWith('provider-1')
+      expect(testProviderMock).toHaveBeenCalledWith('provider-1', 30)
     })
 
     expect((await screen.findAllByText('Provider 测试成功')).length).toBeGreaterThan(0)
@@ -95,7 +95,7 @@ describe('LLMProvidersPanel', () => {
     await user.click(screen.getAllByRole('button', { name: '测试' })[0])
 
     await waitFor(() => {
-      expect(testProviderMock).toHaveBeenCalledWith('provider-1')
+      expect(testProviderMock).toHaveBeenCalledWith('provider-1', 30)
     })
 
     expect((await screen.findAllByText('provider test failed: 401 unauthorized')).length).toBeGreaterThan(0)
