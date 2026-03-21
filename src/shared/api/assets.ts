@@ -18,6 +18,10 @@ export type GenerateAssetInput = {
   instruction: string
 }
 
+export type RefineAssetInput = {
+  instruction: string
+}
+
 export async function listAssets(params: {
   projectId: string
   type?: AssetType
@@ -97,6 +101,22 @@ export function generateAssetStream(
     callbacks,
     assetGenerationResponseSchema,
     'asset generation result',
+    signal,
+  )
+}
+
+export function refineAssetStream(
+  assetId: string,
+  input: RefineAssetInput,
+  callbacks: SSECallbacks<AssetGenerationResponse>,
+  signal?: AbortSignal,
+): void {
+  streamRequestWithSchema(
+    `/assets/${assetId}/refine/stream`,
+    input,
+    callbacks,
+    assetGenerationResponseSchema,
+    'asset refinement result',
     signal,
   )
 }

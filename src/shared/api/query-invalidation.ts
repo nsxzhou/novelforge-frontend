@@ -80,13 +80,6 @@ export async function invalidateProjectTimeline(
   await queryClient.invalidateQueries({ queryKey: queryKeys.timeline(projectId) })
 }
 
-export async function invalidateForeshadowings(
-  queryClient: QueryClient,
-  projectId: string,
-): Promise<void> {
-  await queryClient.invalidateQueries({ queryKey: queryKeys.foreshadowings(projectId) })
-}
-
 export async function invalidateKnowledgeGraph(
   queryClient: QueryClient,
   projectId: string,

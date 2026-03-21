@@ -30,8 +30,9 @@ export function AppRoutes() {
   return (
     <Suspense fallback={<LazyFallback />}>
       <Routes>
-        {/* Fullscreen route - outside AppShell */}
+        {/* Fullscreen routes - outside AppShell */}
         <Route path="/write/:chapterId" element={<WritePage />} />
+        <Route path="/projects/:projectId" element={<ProjectWorkbenchPage />} />
 
         {/* Standard routes inside AppShell */}
         <Route
@@ -41,7 +42,6 @@ export function AppRoutes() {
               <Routes>
                 <Route path="/" element={<HomePage />} />
                 <Route path="/new-project" element={<InspirationPage />} />
-                <Route path="/projects/:projectId" element={<ProjectWorkbenchPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="*" element={<NotFoundPage />} />
               </Routes>

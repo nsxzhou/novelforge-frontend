@@ -1,28 +1,24 @@
 import { type ReactNode } from 'react'
-import { motion } from 'framer-motion'
 import { cn } from '@/shared/lib/cn'
 
-type Tab = {
+type SidebarNavTab = {
   key: string
   label: string
   icon?: ReactNode
   count?: number
 }
 
-export function Tabs<K extends string>({
+export function SidebarNav<K extends string>({
   tabs,
   activeKey,
   onChange,
-  id,
 }: {
-  tabs: Tab[]
+  tabs: SidebarNavTab[]
   activeKey: K
   onChange: (key: K) => void
-  id?: string
 }) {
-  const layoutId = id ? `tab-${id}` : `tab-${tabs.map((t) => t.key).join('-')}`
   return (
-    <div className="relative flex gap-0 border-b border-border">
+    <nav className="flex flex-col pb-2">
       {tabs.map((tab) => {
         const isActive = activeKey === tab.key
         return (
@@ -30,37 +26,30 @@ export function Tabs<K extends string>({
             key={tab.key}
             type="button"
             className={cn(
-              'relative flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors duration-150',
+              'flex items-center gap-3 px-5 py-2.5 text-sm transition-colors duration-150',
               isActive
-                ? 'text-foreground'
-                : 'text-muted-foreground hover:text-foreground',
+                ? 'border-l-[3px] border-foreground bg-muted font-medium text-foreground'
+                : 'border-l-[3px] border-transparent text-muted-foreground hover:bg-muted/50 hover:text-foreground',
             )}
             onClick={() => onChange(tab.key as K)}
           >
             {tab.icon && <span className="shrink-0">{tab.icon}</span>}
-            {tab.label}
+            <span className="flex-1 text-left">{tab.label}</span>
             {tab.count !== undefined && (
               <span
                 className={cn(
                   'inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[11px] font-medium',
                   isActive
-                    ? 'bg-[#F1F5F9] text-[#0F172A]'
-                    : 'bg-[#F1F5F9] text-[#64748B]',
+                    ? 'bg-background text-foreground'
+                    : 'bg-muted text-muted-foreground',
                 )}
               >
                 {tab.count}
               </span>
             )}
-            {isActive && (
-              <motion.div
-                layoutId={layoutId}
-                className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#0F172A] rounded-full"
-                transition={{ duration: 0.15, ease: 'easeOut' }}
-              />
-            )}
           </button>
         )
       })}
-    </div>
+    </nav>
   )
 }

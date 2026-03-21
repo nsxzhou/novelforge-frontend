@@ -3,9 +3,9 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Bot, FilePenLine, Square, Trash2, Plus, Filter, Boxes, Clock } from 'lucide-react'
+import { Bot, FilePenLine, Square, Trash2, Plus, Boxes, Clock, ArrowUpCircle, WandSparkles } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { createAsset, deleteAsset, generateAssetStream, listAllAssets, updateAsset } from '@/shared/api/assets'
+import { createAsset, deleteAsset, generateAssetStream, listAllAssets, refineAssetStream, updateAsset } from '@/shared/api/assets'
 import type { AssetGenerationResponse } from '@/shared/api/assets'
 import { queryKeys } from '@/shared/api/queries'
 import { invalidateProjectAssets } from '@/shared/api/query-invalidation'
@@ -16,8 +16,8 @@ import { ErrorState, LoadingState } from '@/shared/ui/feedback'
 import { Input, Select, Textarea, FormField } from '@/shared/ui/input'
 import { SectionTitle } from '@/shared/ui/section-title'
 import { Badge } from '@/shared/ui/badge'
+import { Tabs } from '@/shared/ui/tabs'
 import { Dialog, DialogFooter } from '@/shared/ui/dialog'
-import { Dropdown, DropdownItem, DropdownSeparator } from '@/shared/ui/dropdown'
 import { EmptyState } from '@/shared/ui/empty-state'
 import { useToast } from '@/shared/ui/toast'
 import { getErrorMessage } from '@/shared/lib/error-message'
@@ -25,7 +25,15 @@ import { variants } from '@/shared/lib/motion'
 import { formatRelativeTime } from '@/shared/lib/format'
 import { StructuredAssetEditor } from './components/structured-asset-editor'
 import { AssetContentDisplay } from './components/asset-content-display'
-import { ASSET_TYPE_TO_SCHEMA } from './schemas/asset-content'
+import { AssetEditorDrawer } from './components/asset-editor-drawer'
+import { OutlineTreeView } from './components/outline-tree-view'
+import {
+  ASSET_TYPE_TO_SCHEMA,
+  detectContentFormat,
+  parseStructuredContent,
+  serializeStructuredContent,
+} from './schemas/asset-content'
+import type { OutlineData } from './schemas/outline-schema'
 
 const assetSchema = z.object({
   type: z.enum(['worldbuilding', 'character', 'outline']),
@@ -38,11 +46,17 @@ const generateSchema = z.object({
   instruction: z.string().trim().min(1, '请填写生成要求'),
 })
 
+const refineSchema = z.object({
+  instruction: z.string().trim().min(1, '请填写优化要求'),
+})
+
 type AssetFormValue = z.infer<typeof assetSchema>
 type GenerateFormValue = z.infer<typeof generateSchema>
+type RefineFormValue = z.infer<typeof refineSchema>
 
 const defaultAssetValue: AssetFormValue = { type: 'outline', title: '', content: '' }
 const defaultGenerateValue: GenerateFormValue = { type: 'character', instruction: '' }
+const defaultRefineValue: RefineFormValue = { instruction: '' }
 
 type AssetEditorMode = { type: 'closed' } | { type: 'create' } | { type: 'edit'; asset: Asset }
 
@@ -58,15 +72,26 @@ const typeIcons: Record<AssetType, string> = {
   outline: '📋',
 }
 
+type FilterType = 'all' | AssetType
+
+const filterTabs: { key: FilterType; label: string }[] = [
+  { key: 'all', label: '全部' },
+  { key: 'worldbuilding', label: '🌍 世界观' },
+  { key: 'character', label: '👤 角色' },
+  { key: 'outline', label: '📋 大纲' },
+]
+
 export function AssetsPanel({ projectId }: { projectId: string }) {
-  const [filterType, setFilterType] = useState<'all' | AssetType>('all')
+  const [filterType, setFilterType] = useState<FilterType>('all')
   const [editorMode, setEditorMode] = useState<AssetEditorMode>({ type: 'closed' })
   const [showGenerate, setShowGenerate] = useState(false)
+  const [refineTarget, setRefineTarget] = useState<Asset | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Asset | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isStreaming, setIsStreaming] = useState(false)
   const [generatedAssetPreview, setGeneratedAssetPreview] = useState<Asset | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const outlineSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const assetsQueryKey = filterType === 'all'
@@ -86,9 +111,27 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
 
   const assetForm = useForm<AssetFormValue>({ resolver: zodResolver(assetSchema), defaultValues: defaultAssetValue })
   const generateForm = useForm<GenerateFormValue>({ resolver: zodResolver(generateSchema), defaultValues: defaultGenerateValue })
+  const refineForm = useForm<RefineFormValue>({ resolver: zodResolver(refineSchema), defaultValues: defaultRefineValue })
   const watchedType = assetForm.watch('type')
   const supportsStructured = watchedType in ASSET_TYPE_TO_SCHEMA
   const isAssetDirty = assetForm.formState.isDirty
+
+  // Outline data parsing for tree view (1C)
+  const outlineAsset = useMemo(
+    () => ((filterType === 'all' ? assetsQuery.data : allAssetsQuery.data) ?? []).find((asset) => asset.type === 'outline') ?? null,
+    [allAssetsQuery.data, assetsQuery.data, filterType],
+  )
+
+  const outlineIsStructured = useMemo(() => {
+    if (!outlineAsset) return false
+    return outlineAsset.content_schema === 'outline_v2'
+      || detectContentFormat(outlineAsset.content, 'outline') === 'structured'
+  }, [outlineAsset])
+
+  const outlineParsedData = useMemo(() => {
+    if (!outlineAsset || !outlineIsStructured) return null
+    return parseStructuredContent(outlineAsset.content, 'outline') as OutlineData | null
+  }, [outlineAsset, outlineIsStructured])
 
   function resetAssetEditor(nextMode: AssetEditorMode) {
     setEditorMode(nextMode)
@@ -116,6 +159,8 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
     abortRef.current = null
     setIsStreaming(false)
     setGeneratedAssetPreview(null)
+    setRefineTarget(null)
+    refineForm.reset(defaultRefineValue)
     resetAssetEditor(nextMode)
     setShowGenerate(false)
     setError(null)
@@ -131,6 +176,15 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
     generateForm.reset(defaultGenerateValue)
   }
 
+  function closeRefinePanel() {
+    abortRef.current?.abort()
+    abortRef.current = null
+    setIsStreaming(false)
+    setRefineTarget(null)
+    setError(null)
+    refineForm.reset(defaultRefineValue)
+  }
+
   function openGeneratePanel() {
     if (showForm && !confirmDiscardDraft()) return
 
@@ -138,10 +192,26 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
     abortRef.current = null
     setIsStreaming(false)
     setGeneratedAssetPreview(null)
+    setRefineTarget(null)
+    refineForm.reset(defaultRefineValue)
     resetAssetEditor({ type: 'closed' })
     generateForm.reset(defaultGenerateValue)
     setError(null)
     setShowGenerate(true)
+  }
+
+  function openRefinePanel(asset: Asset) {
+    if (showForm && !confirmDiscardDraft()) return
+
+    abortRef.current?.abort()
+    abortRef.current = null
+    setIsStreaming(false)
+    setGeneratedAssetPreview(null)
+    setShowGenerate(false)
+    resetAssetEditor({ type: 'closed' })
+    setRefineTarget(asset)
+    refineForm.reset(defaultRefineValue)
+    setError(null)
   }
 
   const refreshAssets = useCallback(async () => {
@@ -180,6 +250,18 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
     },
     onError: (e) => setError(getErrorMessage(e)),
   })
+
+  // Debounced save for outline tree view edits (1C)
+  function handleOutlineTreeChange(data: OutlineData) {
+    if (!outlineAsset) return
+    if (outlineSaveTimerRef.current) clearTimeout(outlineSaveTimerRef.current)
+    outlineSaveTimerRef.current = setTimeout(() => {
+      const serialized = serializeStructuredContent(data)
+      updateAsset(outlineAsset.id, { content: serialized, type: 'outline', title: outlineAsset.title })
+        .then(() => refreshAssets())
+        .catch((e) => toast(getErrorMessage(e), 'error'))
+    }, 800)
+  }
 
   function handleGenerateSubmit(value: GenerateFormValue) {
     setIsStreaming(true)
@@ -223,11 +305,31 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
     generateForm.reset(defaultGenerateValue)
   }
 
+  function handleRefineSubmit(value: RefineFormValue) {
+    if (!refineTarget) return
+
+    setIsStreaming(true)
+    setError(null)
+    abortRef.current = new AbortController()
+    refineAssetStream(refineTarget.id, value, {
+      onContent: () => {},
+      onDone: async () => {
+        abortRef.current = null
+        setIsStreaming(false)
+        setRefineTarget(null)
+        refineForm.reset(defaultRefineValue)
+        await refreshAssets()
+        toast('AI 资产已优化')
+      },
+      onError: (errMsg: string) => {
+        abortRef.current = null
+        setIsStreaming(false)
+        setError(errMsg)
+      },
+    }, abortRef.current.signal)
+  }
+
   const sortedAssets = useMemo(() => [...(assetsQuery.data ?? [])].sort((a, b) => b.updated_at.localeCompare(a.updated_at)), [assetsQuery.data])
-  const outlineAsset = useMemo(
-    () => ((filterType === 'all' ? assetsQuery.data : allAssetsQuery.data) ?? []).find((asset) => asset.type === 'outline') ?? null,
-    [allAssetsQuery.data, assetsQuery.data, filterType],
-  )
   const isAssetSubmitting = createMutation.isPending || updateMutation.isPending
 
   function handleAssetSubmit(value: AssetFormValue) {
@@ -262,6 +364,10 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
 
   const showForm = editorMode.type !== 'closed'
 
+  // Determine if we should show the outline tree view (1C)
+  const showOutlineTree = filterType === 'outline' && outlineIsStructured && outlineParsedData !== null
+  const showOutlineUpgradeHint = filterType === 'outline' && outlineAsset && !outlineIsStructured
+
   return (
     <div className="space-y-6">
       {/* Header bar */}
@@ -273,20 +379,6 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
           className="mb-0"
         />
         <div className="flex items-center gap-2">
-          <Dropdown
-            trigger={
-              <Button variant="ghost" size="sm" leftIcon={<Filter className="h-3.5 w-3.5" />}>
-                {filterType === 'all' ? '全部类型' : typeLabels[filterType]}
-              </Button>
-            }
-          >
-            <DropdownItem onClick={() => setFilterType('all')}>全部类型</DropdownItem>
-            <DropdownSeparator />
-            <DropdownItem onClick={() => setFilterType('worldbuilding')}>🌍 世界观</DropdownItem>
-            <DropdownItem onClick={() => setFilterType('character')}>👤 角色</DropdownItem>
-            <DropdownItem onClick={() => setFilterType('outline')}>📋 大纲</DropdownItem>
-          </Dropdown>
-
           <Button
             variant="secondary"
             size="sm"
@@ -310,6 +402,14 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
           </Button>
         </div>
       </div>
+
+      {/* Tab filter (1A) */}
+      <Tabs
+        id="asset-filter"
+        tabs={filterTabs}
+        activeKey={filterType}
+        onChange={setFilterType}
+      />
 
       {/* AI Generation panel */}
       {showGenerate && (
@@ -374,109 +474,133 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
         </Card>
       )}
 
-      {/* Create/Edit form panel */}
-      {showForm && (
+      {refineTarget && (
         <Card>
-          <h3 className="text-sm font-medium text-foreground mb-4">
-            {editorMode.type === 'create' ? '创建资产' : '编辑资产'}
-          </h3>
-          <form className="space-y-4" onSubmit={assetForm.handleSubmit(handleAssetSubmit)}>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <FormField label="资产类型">
-                <Select {...assetForm.register('type')}>
-                  <option value="worldbuilding">世界观</option>
-                  <option value="character">角色</option>
-                  <option value="outline">大纲</option>
-                </Select>
-              </FormField>
-              <FormField label="资产标题" error={assetForm.formState.errors.title?.message}>
-                <Input {...assetForm.register('title')} placeholder="例如：主角背景" />
-              </FormField>
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-1">
+              <h3 className="text-sm font-medium text-foreground">AI 资产优化</h3>
+              <p className="text-sm text-muted-foreground">当前资产：{refineTarget.title}</p>
             </div>
-            <FormField label="资产内容" error={assetForm.formState.errors.content?.message}>
-              {supportsStructured ? (
-                <StructuredAssetEditor
-                  assetType={watchedType}
-                  content={assetForm.getValues('content')}
-                  onChange={(val) => assetForm.setValue('content', val, { shouldDirty: true, shouldValidate: true })}
-                />
-              ) : (
-                <Textarea rows={6} {...assetForm.register('content')} placeholder="资产正文内容" />
-              )}
+            <Badge variant="default">{typeLabels[refineTarget.type]}</Badge>
+          </div>
+          <form className="space-y-4" onSubmit={refineForm.handleSubmit(handleRefineSubmit)}>
+            <FormField label="优化要求" error={refineForm.formState.errors.instruction?.message}>
+              <Textarea rows={3} {...refineForm.register('instruction')} placeholder="描述你希望 AI 优化的方向，例如补充细节、强化人物动机、梳理结构" />
             </FormField>
-            {error && <ErrorState text={error} />}
             <div className="flex gap-2">
-              <Button type="submit" loading={isAssetSubmitting}>
-                {editorMode.type === 'create' ? '保存资产' : '更新资产'}
+              <Button type="submit" disabled={isStreaming} leftIcon={<WandSparkles className="h-3.5 w-3.5" />}>
+                开始优化
               </Button>
-              <Button type="button" variant="ghost" onClick={handleCancelEdit}>取消</Button>
+              {isStreaming ? (
+                <Button type="button" variant="danger" size="sm" onClick={cancelGeneration} leftIcon={<Square className="h-3.5 w-3.5" />}>
+                  取消
+                </Button>
+              ) : null}
+              <Button type="button" variant="ghost" size="sm" onClick={closeRefinePanel}>
+                关闭
+              </Button>
             </div>
           </form>
+          {error && <ErrorState text={error} className="mt-4" />}
+          {isStreaming && (
+            <div className="mt-4 rounded-lg border border-[#E2E8F0] bg-muted p-4">
+              <LoadingState text="AI 正在优化资产..." className="w-full justify-center border-0 bg-transparent px-0 py-0 text-foreground" />
+              <p className="mt-2 text-center text-xs text-muted-foreground">优化完成后会自动刷新资产列表。</p>
+            </div>
+          )}
         </Card>
       )}
 
-      {/* Asset list */}
-      {assetsQuery.isLoading && <LoadingState text="正在加载资产..." />}
-      {assetsQuery.error && <ErrorState text={getErrorMessage(assetsQuery.error)} />}
-      {error && !showForm && !showGenerate && <ErrorState text={error} />}
-
-      {sortedAssets.length === 0 && !assetsQuery.isLoading ? (
-        <EmptyState
-          icon={<Boxes className="h-6 w-6" />}
-          title="暂无设定资产"
-          description="创建世界观、角色或大纲来丰富你的故事"
-          action={
-            <Button size="sm" onClick={handleCreateAsset} leftIcon={<Plus className="h-3.5 w-3.5" />}>
-              {outlineAsset ? '编辑大纲' : '创建资产'}
-            </Button>
-          }
+      {/* Outline tree view (1C) */}
+      {showOutlineTree && (
+        <OutlineTreeView
+          defaultValues={outlineParsedData}
+          onChange={handleOutlineTreeChange}
         />
-      ) : (
-        <motion.div
-          initial="hidden"
-          animate="visible"
-          variants={variants.staggerChildren}
-          className="space-y-3"
-        >
-          {sortedAssets.map((asset) => (
-            <motion.div key={asset.id} variants={variants.fadeInUp} transition={{ duration: 0.15 }}>
-              <Card padding="md" interactive onClick={() => handleEdit(asset)}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2.5 mb-1.5">
-                      <span className="text-base">{typeIcons[asset.type]}</span>
-                      <h3 className="text-sm font-medium tracking-tight text-foreground truncate">
-                        {asset.title}
-                      </h3>
-                      <Badge variant="default">{typeLabels[asset.type]}</Badge>
+      )}
+
+      {/* Outline upgrade hint (1C) */}
+      {showOutlineUpgradeHint && (
+        <Card padding="md">
+          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            <ArrowUpCircle className="h-5 w-5 shrink-0 text-amber-500" />
+            <div>
+              <p className="font-medium text-foreground">当前大纲为纯文本格式</p>
+              <p className="mt-0.5">升级为结构化大纲后可使用文件树导航编辑。点击大纲卡片进入编辑后，选择结构化模式即可升级。</p>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Asset list (hidden when outline tree is shown) */}
+      {!showOutlineTree && (
+        <>
+          {assetsQuery.isLoading && <LoadingState text="正在加载资产..." />}
+          {assetsQuery.error && <ErrorState text={getErrorMessage(assetsQuery.error)} />}
+          {error && !showForm && !showGenerate && !refineTarget && <ErrorState text={error} />}
+
+          {sortedAssets.length === 0 && !assetsQuery.isLoading ? (
+            <EmptyState
+              icon={<Boxes className="h-6 w-6" />}
+              title="暂无设定资产"
+              description="创建世界观、角色或大纲来丰富你的故事"
+              action={
+                <Button size="sm" onClick={handleCreateAsset} leftIcon={<Plus className="h-3.5 w-3.5" />}>
+                  {outlineAsset ? '编辑大纲' : '创建资产'}
+                </Button>
+              }
+            />
+          ) : (
+            <motion.div
+              initial="hidden"
+              animate="visible"
+              variants={variants.staggerChildren}
+              className="space-y-3"
+            >
+              {sortedAssets.map((asset) => (
+                <motion.div key={asset.id} variants={variants.fadeInUp} transition={{ duration: 0.15 }}>
+                  <Card padding="md" interactive onClick={() => handleEdit(asset)}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2.5 mb-1.5">
+                          <span className="text-base">{typeIcons[asset.type]}</span>
+                          <h3 className="text-sm font-medium tracking-tight text-foreground truncate">
+                            {asset.title}
+                          </h3>
+                          <Badge variant="default">{typeLabels[asset.type]}</Badge>
+                        </div>
+                        <div className="mb-2">
+                          <AssetContentDisplay content={asset.content} assetType={asset.type} />
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                          <Clock className="h-3 w-3" />
+                          {formatRelativeTime(asset.updated_at)}
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 gap-1" onClick={(e) => e.stopPropagation()}>
+                        <Button variant="ghost" size="sm" onClick={() => openRefinePanel(asset)} leftIcon={<WandSparkles className="h-3.5 w-3.5" />}>
+                          AI 优化
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleEdit(asset)} leftIcon={<FilePenLine className="h-3.5 w-3.5" />}>
+                          编辑
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setDeleteTarget(asset)}
+                          className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                          leftIcon={<Trash2 className="h-3.5 w-3.5" />}
+                        >
+                          删除
+                        </Button>
+                      </div>
                     </div>
-                    <div className="mb-2">
-                      <AssetContentDisplay content={asset.content} assetType={asset.type} />
-                    </div>
-                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                      <Clock className="h-3 w-3" />
-                      {formatRelativeTime(asset.updated_at)}
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 gap-1" onClick={(e) => e.stopPropagation()}>
-                    <Button variant="ghost" size="sm" onClick={() => handleEdit(asset)} leftIcon={<FilePenLine className="h-3.5 w-3.5" />}>
-                      编辑
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setDeleteTarget(asset)}
-                      className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                      leftIcon={<Trash2 className="h-3.5 w-3.5" />}
-                    >
-                      删除
-                    </Button>
-                  </div>
-                </div>
-              </Card>
+                  </Card>
+                </motion.div>
+              ))}
             </motion.div>
-          ))}
-        </motion.div>
+          )}
+        </>
       )}
 
       {/* Delete dialog */}
@@ -500,6 +624,46 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
           </Button>
         </DialogFooter>
       </Dialog>
+
+      {/* Editor drawer (1B) */}
+      <AssetEditorDrawer
+        open={showForm}
+        onClose={handleCancelEdit}
+        title={editorMode.type === 'create' ? '创建资产' : '编辑资产'}
+      >
+        <form className="space-y-4" onSubmit={assetForm.handleSubmit(handleAssetSubmit)}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FormField label="资产类型">
+              <Select {...assetForm.register('type')}>
+                <option value="worldbuilding">世界观</option>
+                <option value="character">角色</option>
+                <option value="outline">大纲</option>
+              </Select>
+            </FormField>
+            <FormField label="资产标题" error={assetForm.formState.errors.title?.message}>
+              <Input {...assetForm.register('title')} placeholder="例如：主角背景" />
+            </FormField>
+          </div>
+          <FormField label="资产内容" error={assetForm.formState.errors.content?.message}>
+            {supportsStructured ? (
+              <StructuredAssetEditor
+                assetType={watchedType}
+                content={assetForm.getValues('content')}
+                onChange={(val) => assetForm.setValue('content', val, { shouldDirty: true, shouldValidate: true })}
+              />
+            ) : (
+              <Textarea rows={6} {...assetForm.register('content')} placeholder="资产正文内容" />
+            )}
+          </FormField>
+          {error && <ErrorState text={error} />}
+          <div className="flex gap-2">
+            <Button type="submit" loading={isAssetSubmitting}>
+              {editorMode.type === 'create' ? '保存资产' : '更新资产'}
+            </Button>
+            <Button type="button" variant="ghost" onClick={handleCancelEdit}>取消</Button>
+          </div>
+        </form>
+      </AssetEditorDrawer>
     </div>
   )
 }

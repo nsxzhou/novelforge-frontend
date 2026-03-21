@@ -1,7 +1,8 @@
 import { createRequestSignal, getTransportErrorKind } from '@/shared/api/http-client'
 import { getClientUserId } from '@/shared/api/client-identity'
-import { appEnv } from '@/shared/config/env'
 import { getTimeoutPolicy } from '@/shared/api/llm-providers'
+import { appEnv } from '@/shared/config/env'
+import { normalizeServiceErrorMessage } from '@/shared/lib/error-message'
 import type { ZodType } from 'zod'
 
 export type SSECallbacks<T> = {
@@ -66,7 +67,7 @@ export function streamRequest<T>(
     .then(async (response) => {
       if (!response.ok) {
         const text = await response.text().catch(() => `HTTP ${response.status}`)
-        callbacks.onError(text)
+        callbacks.onError(parseErrorMessage(text))
         return
       }
 
@@ -133,15 +134,18 @@ export function streamRequestWithSchema<T>(
 }
 
 function parseErrorMessage(rawData: string): string {
+  let message = rawData
+
   try {
     const parsed = JSON.parse(rawData) as { error?: unknown }
     if (typeof parsed.error === 'string' && parsed.error.trim() !== '') {
-      return parsed.error
+      message = parsed.error
     }
   } catch {
     // ignore invalid json
   }
-  return rawData
+
+  return normalizeServiceErrorMessage(message)
 }
 
 async function resolveTimeoutMs<T>(options: StreamRequestOptions<T>): Promise<number> {
@@ -167,7 +171,7 @@ function normalizeStreamError(error: unknown): string {
     return 'AI 连接已中断，请重试。'
   }
   if (error instanceof Error) {
-    return error.message
+    return normalizeServiceErrorMessage(error.message) || error.message
   }
   return 'Stream request failed'
 }

@@ -39,6 +39,7 @@ export const generationRecordSchema = z.object({
   conversation_id: z.string().optional(),
   kind: z.enum([
     'asset_generation',
+    'asset_refinement',
     'chapter_generation',
     'chapter_continuation',
     'chapter_rewrite',

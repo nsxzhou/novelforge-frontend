@@ -15,7 +15,6 @@ export const queryKeys = {
   llmProviders: ['llmProviders'] as const,
   llmTimeoutPolicy: ['llmTimeoutPolicy'] as const,
   prompts: (projectId: string) => ['prompts', projectId] as const,
-  foreshadowings: (projectId: string) => ['foreshadowings', projectId] as const,
   kgNodes: (projectId: string) => ['kgNodes', projectId] as const,
   kgEdges: (projectId: string) => ['kgEdges', projectId] as const,
   dashboard: (projectId?: string) => ['dashboard', projectId ?? 'global'] as const,

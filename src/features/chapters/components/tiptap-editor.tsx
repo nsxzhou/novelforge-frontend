@@ -91,7 +91,7 @@ export function TiptapEditor({
       {!readOnly ? <EditorToolbar editor={editor} ghostTextEnabled={ghostTextEnabled} onToggleGhostText={onToggleGhostText} /> : null}
       <EditorContent
         editor={editor}
-        className="prose prose-sm max-w-none text-foreground [&_.tiptap]:min-h-[120px] [&_.tiptap]:outline-none [&_.tiptap_p]:leading-7 [&_.tiptap_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)] [&_.tiptap_p.is-editor-empty:first-child::before]:text-muted-foreground [&_.tiptap_p.is-editor-empty:first-child::before]:float-left [&_.tiptap_p.is-editor-empty:first-child::before]:h-0 [&_.tiptap_p.is-editor-empty:first-child::before]:pointer-events-none"
+        className="prose prose-sm max-w-none text-foreground [&_.tiptap]:min-h-[120px] [&_.tiptap]:outline-none [&_.tiptap_p]:indent-8 [&_.tiptap_p]:leading-7 [&_.tiptap_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)] [&_.tiptap_p.is-editor-empty:first-child::before]:text-muted-foreground [&_.tiptap_p.is-editor-empty:first-child::before]:float-left [&_.tiptap_p.is-editor-empty:first-child::before]:h-0 [&_.tiptap_p.is-editor-empty:first-child::before]:pointer-events-none"
       />
     </div>
   )

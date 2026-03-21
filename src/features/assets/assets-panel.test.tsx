@@ -14,6 +14,7 @@ const createAssetMock = vi.fn()
 const updateAssetMock = vi.fn()
 const deleteAssetMock = vi.fn()
 const generateAssetStreamMock = vi.fn()
+const refineAssetStreamMock = vi.fn()
 
 vi.mock('@/shared/api/assets', () => ({
   listAllAssets: (...args: unknown[]) => listAllAssetsMock(...args),
@@ -21,6 +22,7 @@ vi.mock('@/shared/api/assets', () => ({
   updateAsset: (...args: unknown[]) => updateAssetMock(...args),
   deleteAsset: (...args: unknown[]) => deleteAssetMock(...args),
   generateAssetStream: (...args: unknown[]) => generateAssetStreamMock(...args),
+  refineAssetStream: (...args: unknown[]) => refineAssetStreamMock(...args),
 }))
 
 function renderPanel() {
@@ -43,11 +45,13 @@ function renderPanel() {
 describe('AssetsPanel', () => {
   let assets: Asset[]
   let streamCallbacks: SSECallbacks<AssetGenerationResponse> | null
+  let refineCallbacks: SSECallbacks<AssetGenerationResponse> | null
 
   beforeEach(() => {
     vi.clearAllMocks()
     assets = []
     streamCallbacks = null
+    refineCallbacks = null
 
     listAllAssetsMock.mockImplementation(() => Promise.resolve([...assets]))
     createAssetMock.mockResolvedValue(undefined)
@@ -60,6 +64,15 @@ describe('AssetsPanel', () => {
         callbacks: SSECallbacks<AssetGenerationResponse>,
       ) => {
         streamCallbacks = callbacks
+      },
+    )
+    refineAssetStreamMock.mockImplementation(
+      (
+        _assetId: string,
+        _input: unknown,
+        callbacks: SSECallbacks<AssetGenerationResponse>,
+      ) => {
+        refineCallbacks = callbacks
       },
     )
   })
@@ -204,6 +217,63 @@ describe('AssetsPanel', () => {
     })
 
     expect(screen.getByDisplayValue('主角人设')).toBeTruthy()
+  })
+
+  it('submits refine request and closes the inline refine panel after success', async () => {
+    assets = [{
+      id: 'asset-3',
+      project_id: 'project-1',
+      type: 'character',
+      title: '林澈',
+      content: '初版角色设定',
+      created_at: '2026-03-19T10:00:00Z',
+      updated_at: '2026-03-19T10:00:00Z',
+    }]
+
+    renderPanel()
+    const user = userEvent.setup()
+
+    await screen.findByText('林澈')
+    await user.click(screen.getByRole('button', { name: 'AI 优化' }))
+    await user.type(screen.getByPlaceholderText('描述你希望 AI 优化的方向，例如补充细节、强化人物动机、梳理结构'), '强化人物动机')
+    await user.click(screen.getByRole('button', { name: '开始优化' }))
+
+    expect(refineAssetStreamMock).toHaveBeenCalledWith(
+      'asset-3',
+      { instruction: '强化人物动机' },
+      expect.any(Object),
+      expect.any(AbortSignal),
+    )
+
+    const refinedAsset: Asset = {
+      ...assets[0],
+      content: '强化后角色设定',
+      updated_at: '2026-03-19T10:05:00Z',
+    }
+    assets = [refinedAsset]
+
+    await act(async () => {
+      await refineCallbacks?.onDone({
+        asset: refinedAsset,
+        generation_record: {
+          id: 'gen-3',
+          project_id: 'project-1',
+          kind: 'asset_refinement',
+          status: 'succeeded',
+          input_snapshot_ref: 'in',
+          output_ref: 'out',
+          token_usage: 100,
+          duration_millis: 800,
+          created_at: '2026-03-19T10:05:00Z',
+          updated_at: '2026-03-19T10:05:00Z',
+        },
+      })
+    })
+
+    await waitFor(() => {
+      expect(screen.queryByText('AI 资产优化')).toBeNull()
+    })
+    expect(screen.getByText('AI 资产已优化')).toBeTruthy()
   })
 
   it('shows an explicit repair state for invalid outline_v2 structured content', async () => {

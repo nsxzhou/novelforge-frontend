@@ -5,6 +5,7 @@ import { StreamingText } from '@/shared/ui/streaming-text'
 import { rewriteChapterStream } from '@/shared/api/chapters'
 import type { ChapterGenerationResponse } from '@/shared/api/chapters'
 import { WandSparkles, Square, X, ArrowLeftRight } from 'lucide-react'
+import { normalizeServiceErrorMessage } from '@/shared/lib/error-message'
 import { DiffEditor } from './diff-editor'
 
 type RewritePopoverProps = {
@@ -50,7 +51,7 @@ export function RewritePopover({
         },
         onError: (errMsg: string) => {
           setIsStreaming(false)
-          setError(errMsg)
+          setError(normalizeServiceErrorMessage(errMsg))
         },
       },
       abortRef.current.signal,

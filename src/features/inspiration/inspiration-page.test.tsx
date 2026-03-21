@@ -169,18 +169,10 @@ const guidedCandidates = [
       themes: ['自我分裂'],
       central_conflict: '规则失控',
       volumes: [{
-        title: '第一卷',
-        summary: '广播谜团卷',
-        key_events: ['广播异常'],
-        chapters: [
-          {
-            ordinal: 1,
-            title: '第一章 广播回声',
-            summary: '广播里出现另一个自己。',
-            purpose: '开篇',
-            must_include: ['广播'],
-          },
-        ],
+        title: '回声卷',
+        summary: '广播失控卷',
+        key_events: ['广播异常', '锁定控制室'],
+        chapters: [],
       }],
       ending: '主角成为新的广播源头。',
       notes: '',
@@ -312,7 +304,13 @@ describe('InspirationPage', () => {
     })
 
     await screen.findByRole('heading', { name: '候选方案' })
-    await user.click(screen.getByText('深空疑云'))
+    expect(screen.getAllByText('分卷规划')).toHaveLength(3)
+    expect(screen.getByText('回声卷')).toBeTruthy()
+    expect(screen.getByText('关键事件：广播异常、锁定控制室')).toBeTruthy()
+    expect(screen.getByText('已规划 1 卷，可后续继续细化章节。')).toBeTruthy()
+    expect(screen.queryByText('第 1 章 · 第一章 广播回声')).toBeNull()
+
+    await user.click(screen.getByText('轨道回声'))
     await user.click(screen.getByRole('button', { name: '下一步' }))
     await user.click(screen.getByLabelText('大纲种子'))
     await user.click(screen.getByRole('button', { name: '创建项目并进入设定工坊' }))
@@ -320,7 +318,7 @@ describe('InspirationPage', () => {
     await waitFor(() => {
       expect(createGuidedProjectMock).toHaveBeenCalled()
       expect(createGuidedProjectMock.mock.calls[0]?.[0]).toEqual({
-        candidate: guidedCandidates[1],
+        candidate: guidedCandidates[2],
         persist_outline: false,
         persist_worldbuilding: true,
         persist_protagonist: true,

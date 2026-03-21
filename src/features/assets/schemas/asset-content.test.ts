@@ -56,6 +56,50 @@ describe('asset-content helpers', () => {
     expect(serializeStructuredContent(parsed!)).toContain('"premise": "一个世界将要崩塌"')
   })
 
+  it('parses and serializes volume-only outlines', () => {
+    const content = JSON.stringify({
+      _schema: 'outline_v2',
+      premise: '先确定卷级结构',
+      volumes: [{
+        title: '回声卷',
+        chapters: [],
+      }],
+    })
+
+    const parsed = parseStructuredContent(content, 'outline')
+    expect(parsed).toEqual({
+      _schema: 'outline_v2',
+      premise: '先确定卷级结构',
+      themes: [],
+      central_conflict: '',
+      volumes: [{
+        title: '回声卷',
+        summary: '',
+        key_events: [],
+        chapters: [],
+      }],
+      ending: '',
+      notes: '',
+    })
+    expect(serializeStructuredContent(parsed!)).toContain('"chapters": []')
+  })
+
+  it('rejects non-continuous chapter ordinals when chapter plans exist', () => {
+    const content = JSON.stringify({
+      _schema: 'outline_v2',
+      premise: '章节顺序错误',
+      volumes: [{
+        title: '第一卷',
+        chapters: [
+          { ordinal: 1, title: '第一章' },
+          { ordinal: 3, title: '第三章' },
+        ],
+      }],
+    })
+
+    expect(parseStructuredContent(content, 'outline')).toBeNull()
+  })
+
   it('rejects legacy outline_v2 payloads without volumes', () => {
     const content = JSON.stringify({
       _schema: 'outline_v2',

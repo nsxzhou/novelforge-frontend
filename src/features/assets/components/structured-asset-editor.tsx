@@ -13,7 +13,7 @@ import {
 } from '../schemas/asset-content'
 import { CharacterForm } from './character-form'
 import { WorldbuildingForm } from './worldbuilding-form'
-import { OutlineForm } from './outline-form'
+import { OutlineTreeView } from './outline-tree-view'
 import type { CharacterData } from '../schemas/character-schema'
 import type { WorldbuildingData } from '../schemas/worldbuilding-schema'
 import type { OutlineData } from '../schemas/outline-schema'
@@ -156,7 +156,7 @@ export function StructuredAssetEditor({ assetType, content, onChange }: Structur
             onChange={handleStructuredChange}
           />
         ) : (
-          <OutlineForm
+          <OutlineTreeView
             defaultValues={defaultData as OutlineData}
             onChange={handleStructuredChange}
           />

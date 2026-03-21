@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect } from 'react'
+import { useRef, useCallback, useEffect, useState } from 'react'
 import ForceGraph2D from 'react-force-graph-2d'
 import type { KGNode, KGEdge, KGNodeType } from '@/shared/api/types'
 
@@ -32,6 +32,23 @@ type KGGraphProps = {
 export function KGGraph({ nodes, edges, onNodeClick, selectedNodeId }: KGGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const fgRef = useRef<any>(null)
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const ro = new ResizeObserver((entries) => {
+      const entry = entries[0]
+      if (entry) {
+        setDimensions({
+          width: entry.contentRect.width,
+          height: entry.contentRect.height,
+        })
+      }
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   const graphData = {
     nodes: nodes.map((n): GraphNode => ({
@@ -100,34 +117,36 @@ export function KGGraph({ nodes, edges, onNodeClick, selectedNodeId }: KGGraphPr
 
   useEffect(() => {
     if (fgRef.current) {
-      fgRef.current.d3Force('charge')?.strength(-120)
-      fgRef.current.d3Force('link')?.distance(60)
+      fgRef.current.d3Force('charge')?.strength(-80)
+      fgRef.current.d3Force('link')?.distance(40)
     }
   }, [])
 
   return (
-    <div ref={containerRef} className="h-full w-full">
-      <ForceGraph2D
-        ref={fgRef}
-        graphData={graphData}
-        nodeCanvasObject={paintNode}
-        nodePointerAreaPaint={(node: GraphNode, color: string, ctx: CanvasRenderingContext2D) => {
-          const size = 8
-          const x = (node as any).x ?? 0
-          const y = (node as any).y ?? 0
-          ctx.fillStyle = color
-          ctx.fillRect(x - size, y - size, size * 2, size * 2)
-        }}
-        onNodeClick={handleNodeClick as any}
-        linkColor={() => '#D1D5DB'}
-        linkWidth={1}
-        linkDirectionalArrowLength={4}
-        linkDirectionalArrowRelPos={1}
-        linkLabel={(link: any) => link.label}
-        backgroundColor="transparent"
-        width={containerRef.current?.clientWidth}
-        height={containerRef.current?.clientHeight ?? 500}
-      />
+    <div ref={containerRef} className="h-full w-full overflow-hidden">
+      {dimensions.width > 0 && dimensions.height > 0 && (
+        <ForceGraph2D
+          ref={fgRef}
+          graphData={graphData}
+          nodeCanvasObject={paintNode}
+          nodePointerAreaPaint={(node: GraphNode, color: string, ctx: CanvasRenderingContext2D) => {
+            const size = 8
+            const x = (node as any).x ?? 0
+            const y = (node as any).y ?? 0
+            ctx.fillStyle = color
+            ctx.fillRect(x - size, y - size, size * 2, size * 2)
+          }}
+          onNodeClick={handleNodeClick as any}
+          linkColor={() => '#D1D5DB'}
+          linkWidth={1}
+          linkDirectionalArrowLength={4}
+          linkDirectionalArrowRelPos={1}
+          linkLabel={(link: any) => link.label}
+          backgroundColor="transparent"
+          width={dimensions.width}
+          height={dimensions.height}
+        />
+      )}
     </div>
   )
 }

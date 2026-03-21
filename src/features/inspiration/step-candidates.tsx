@@ -68,7 +68,9 @@ export function StepCandidates({
 
       <div className="space-y-4">
         {candidates.map((candidate, index) => {
+          const plannedVolumes = candidate.outline_seed.volumes ?? []
           const plannedChapters = flattenOutlineChapters(candidate.outline_seed)
+          const hasChapterPlans = plannedChapters.length > 0
 
           return (
             <button
@@ -128,23 +130,52 @@ export function StepCandidates({
               <div className="mt-4 rounded-xl border border-dashed border-[#D6E4FF] bg-[#F8FBFF] p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm font-medium text-foreground">章节计划</p>
+                    <p className="text-sm font-medium text-foreground">分卷规划</p>
                     <p className="mt-1 text-xs leading-6 text-muted-foreground">
-                      {plannedChapters.length > 0 ? `已规划 ${plannedChapters.length} 章，可直接进入逐章写作。` : '暂未提供章节计划。'}
+                      {plannedVolumes.length > 0
+                        ? hasChapterPlans
+                          ? `已规划 ${plannedVolumes.length} 卷，当前补充了 ${plannedChapters.length} 章概要。`
+                          : `已规划 ${plannedVolumes.length} 卷，可后续继续细化章节。`
+                        : '暂未提供分卷规划。'}
                     </p>
                   </div>
-                  {plannedChapters.length > 0 ? <Badge>{plannedChapters.length} 章</Badge> : null}
+                  {plannedVolumes.length > 0 ? <Badge>{plannedVolumes.length} 卷</Badge> : null}
                 </div>
-                {plannedChapters.length > 0 ? (
+                {plannedVolumes.length > 0 ? (
                   <div className="mt-3 space-y-2">
-                    {plannedChapters.slice(0, 3).map((chapter) => (
-                      <div key={`${chapter.ordinal}-${chapter.title}`} className="rounded-lg border border-[#E2E8F0] bg-white px-3 py-2">
-                        <p className="text-sm font-medium text-foreground">第 {chapter.ordinal} 章 · {chapter.title || '未命名章节'}</p>
-                        {chapter.summary ? <p className="mt-1 text-xs leading-6 text-muted-foreground">{chapter.summary}</p> : null}
-                      </div>
-                    ))}
-                    {plannedChapters.length > 3 ? (
-                      <p className="text-xs text-muted-foreground">还有 {plannedChapters.length - 3} 章待展开。</p>
+                    {plannedVolumes.slice(0, 3).map((volume, volumeIndex) => {
+                      const volumeChapters = volume.chapters ?? []
+
+                      return (
+                        <div key={`${volumeIndex}-${volume.title}`} className="rounded-lg border border-[#E2E8F0] bg-white px-3 py-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-medium text-foreground">{volume.title || `第 ${volumeIndex + 1} 卷`}</p>
+                              {volume.summary ? <p className="mt-1 text-xs leading-6 text-muted-foreground">{volume.summary}</p> : null}
+                            </div>
+                            {volumeChapters.length > 0 ? <Badge>{volumeChapters.length} 章</Badge> : null}
+                          </div>
+                          {volume.key_events?.length ? (
+                            <p className="mt-2 text-xs leading-6 text-muted-foreground">关键事件：{volume.key_events.join('、')}</p>
+                          ) : null}
+                          {volumeChapters.length > 0 ? (
+                            <div className="mt-2 space-y-2">
+                              {volumeChapters.slice(0, 2).map((chapter) => (
+                                <div key={`${chapter.ordinal}-${chapter.title}`} className="rounded-md border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2">
+                                  <p className="text-xs font-medium text-foreground">第 {chapter.ordinal} 章 · {chapter.title || '未命名章节'}</p>
+                                  {chapter.summary ? <p className="mt-1 text-xs leading-6 text-muted-foreground">{chapter.summary}</p> : null}
+                                </div>
+                              ))}
+                              {volumeChapters.length > 2 ? (
+                                <p className="text-xs text-muted-foreground">还有 {volumeChapters.length - 2} 章待展开。</p>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </div>
+                      )
+                    })}
+                    {plannedVolumes.length > 3 ? (
+                      <p className="text-xs text-muted-foreground">还有 {plannedVolumes.length - 3} 卷待展开。</p>
                     ) : null}
                   </div>
                 ) : null}

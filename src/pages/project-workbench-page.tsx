@@ -1,10 +1,10 @@
-﻿import { useEffect, useMemo, useState } from 'react'
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Download, PencilLine, Trash2, X, Check,
+  Download, PencilLine, Trash2, X, Check, PenTool,
   LayoutGrid, Boxes, BookOpen, Wrench, GitBranch,
-  FileText, Calendar, ChevronRight, Eye, Share2, BarChart3,
+  FileText, Calendar, ChevronRight, Share2,
 } from 'lucide-react'
 import { getProject, updateProject, deleteProject } from '@/shared/api/projects'
 import { listAllAssets } from '@/shared/api/assets'
@@ -15,7 +15,6 @@ import { exportProject } from '@/shared/api/export'
 import { queryKeys } from '@/shared/api/queries'
 import { invalidateProjectOverview } from '@/shared/api/query-invalidation'
 import { LoadingState, ErrorState } from '@/shared/ui/feedback'
-import { Tabs } from '@/shared/ui/tabs'
 import { Button } from '@/shared/ui/button'
 import { Input, Textarea, Select, FormField } from '@/shared/ui/input'
 import { Card } from '@/shared/ui/card'
@@ -24,17 +23,17 @@ import { Dialog, DialogFooter } from '@/shared/ui/dialog'
 import { Dropdown, DropdownItem } from '@/shared/ui/dropdown'
 import { useToast } from '@/shared/ui/toast'
 import { cn } from '@/shared/lib/cn'
+import { ProjectLayout } from '@/shared/ui/project-layout'
+import { SidebarNav } from '@/shared/ui/sidebar-nav'
 import { AssetsPanel } from '@/features/assets/assets-panel'
 import { ChaptersPanel } from '@/features/chapters/chapters-panel'
 import { MemoryPanel } from '@/features/memory/memory-panel'
 import { PromptsPanel } from '@/features/prompts/prompts-panel'
-import { ForeshadowingPanel } from '@/features/foreshadowing/foreshadowing-panel'
 import { KGPanel } from '@/features/knowledge-graph/kg-panel'
-import { CostDashboard } from '@/features/metrics/cost-dashboard'
 import { getErrorMessage } from '@/shared/lib/error-message'
 import { getProjectStatusLabel, formatDate } from '@/shared/lib/format'
 
-type TabKey = 'overview' | 'assets' | 'chapters' | 'foreshadowing' | 'knowledge-graph' | 'memory' | 'prompts' | 'metrics'
+type TabKey = 'overview' | 'assets' | 'chapters' | 'knowledge-graph' | 'memory' | 'prompts'
 
 function getProjectStatusVariant(status: string) {
   switch (status) {
@@ -52,7 +51,6 @@ export function ProjectWorkbenchPage() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const [activeTab, setActiveTab] = useState<TabKey>('overview')
-  const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null)
   const [exportLoading, setExportLoading] = useState(false)
 
   // Edit state
@@ -143,21 +141,18 @@ export function ProjectWorkbenchPage() {
     { key: 'overview', label: '概览', icon: <LayoutGrid className="h-4 w-4" /> },
     { key: 'assets', label: '设定工坊', icon: <Boxes className="h-4 w-4" />, count: assetsQuery.data?.length },
     { key: 'chapters', label: '章节', icon: <BookOpen className="h-4 w-4" />, count: chaptersQuery.data?.length },
-    { key: 'foreshadowing', label: '伏笔', icon: <Eye className="h-4 w-4" /> },
     { key: 'knowledge-graph', label: '知识图谱', icon: <Share2 className="h-4 w-4" /> },
     { key: 'memory', label: '记忆层', icon: <GitBranch className="h-4 w-4" /> },
     { key: 'prompts', label: 'Prompts', icon: <Wrench className="h-4 w-4" /> },
-    { key: 'metrics', label: '指标', icon: <BarChart3 className="h-4 w-4" /> },
   ]
 
-  function openChapterWorkbench(chapterId: string) {
-    setSelectedChapterId(chapterId)
-    setActiveTab('chapters')
+  function openChapterInWriteMode(chapterId: string) {
+    navigate(`/write/${chapterId}`)
   }
 
   useEffect(() => {
     const tab = searchParams.get('tab')
-    if (tab === 'overview' || tab === 'assets' || tab === 'chapters' || tab === 'foreshadowing' || tab === 'knowledge-graph' || tab === 'memory' || tab === 'prompts' || tab === 'metrics') {
+    if (tab === 'overview' || tab === 'assets' || tab === 'chapters' || tab === 'knowledge-graph' || tab === 'memory' || tab === 'prompts') {
       setActiveTab(tab)
     }
   }, [searchParams])
@@ -323,29 +318,19 @@ export function ProjectWorkbenchPage() {
       case 'assets':
         return <AssetsPanel projectId={project.id} />
       case 'chapters':
-        return (
-          <ChaptersPanel
-            projectId={project.id}
-            selectedChapterId={selectedChapterId}
-            onSelectedChapterChange={setSelectedChapterId}
-          />
-        )
-      case 'foreshadowing':
-        return <ForeshadowingPanel projectId={project.id} />
+        return <ChaptersPanel projectId={project.id} />
       case 'knowledge-graph':
         return <KGPanel projectId={project.id} />
       case 'memory':
         return (
           <MemoryPanel
             projectId={project.id}
-            activeChapterId={selectedChapterId}
-            onOpenChapter={openChapterWorkbench}
+            activeChapterId={null}
+            onOpenChapter={openChapterInWriteMode}
           />
         )
       case 'prompts':
         return <PromptsPanel projectId={project.id} />
-      case 'metrics':
-        return <CostDashboard projectId={project.id} />
       default:
         return null
     }
@@ -353,31 +338,35 @@ export function ProjectWorkbenchPage() {
   }, [
     activeTab, assetsQuery.data, chaptersQuery.data,
     projectQuery.data, isEditing, editTitle, editSummary, editStatus,
-    updateMutation.isPending, updateMutation.error, selectedChapterId, showDeleteDialog,
+    updateMutation.isPending, updateMutation.error, showDeleteDialog,
   ])
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-1">
-          {/* Breadcrumb */}
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span>项目</span>
-            <ChevronRight className="h-3 w-3" />
-            <span className="text-foreground font-medium">
-              {projectQuery.data?.title ?? '加载中...'}
+    <div className="flex h-screen flex-col bg-background text-foreground">
+      <header className="shrink-0 border-b border-border bg-card">
+        <div className="flex items-center gap-3 px-5 py-3">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 transition-opacity hover:opacity-80"
+          >
+            <PenTool className="h-5 w-5 text-foreground" />
+            <span className="text-lg font-light tracking-tight text-foreground">
+              InkMuse
             </span>
-          </div>
-          <h1 className="text-2xl font-light tracking-tight text-foreground">
-            {projectQuery.data?.title ?? '项目工作台'}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            统一管理设定资产与章节生成流程
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* Export dropdown */}
+          </Link>
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          <span className="truncate text-sm font-medium text-foreground">
+            {projectQuery.data?.title ?? '加载中...'}
+          </span>
+          <div className="flex-1" />
+          <nav className="hidden items-center gap-5 md:flex">
+            <Link to="/" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
+              仪表盘
+            </Link>
+            <Link to="/settings" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
+              设置
+            </Link>
+          </nav>
           <Dropdown
             trigger={
               <Button
@@ -410,39 +399,44 @@ export function ProjectWorkbenchPage() {
             </DropdownItem>
           </Dropdown>
         </div>
-      </div>
-
-      {/* Tabs */}
-      <Tabs tabs={tabs} activeKey={activeTab} onChange={handleTabChange} />
-
-      {/* Content */}
-      <div>
-        {projectQuery.isLoading ? <LoadingState text="加载项目中..." /> : null}
-        {projectQuery.error ? <ErrorState text={String((projectQuery.error as Error).message)} /> : null}
-        {projectQuery.data ? content : null}
-      </div>
-
-      {/* Delete dialog */}
-      <Dialog
-        open={showDeleteDialog}
-        onClose={() => setShowDeleteDialog(false)}
-        title="删除项目"
-        description={`确定要删除项目「${projectQuery.data?.title}」吗？此操作不可撤销，所有相关数据将被永久删除。`}
-        size="sm"
+      </header>
+      <ProjectLayout
+        sidebar={
+          <SidebarNav
+            tabs={tabs}
+            activeKey={activeTab}
+            onChange={handleTabChange}
+          />
+        }
       >
-        {deleteMutation.error && <ErrorState text={getErrorMessage(deleteMutation.error)} />}
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => setShowDeleteDialog(false)}>取消</Button>
-          <Button
-            variant="danger"
-            loading={deleteMutation.isPending}
-            onClick={() => deleteMutation.mutate()}
-            leftIcon={<Trash2 className="h-3.5 w-3.5" />}
-          >
-            确认删除
-          </Button>
-        </DialogFooter>
-      </Dialog>
+        <div>
+          {projectQuery.isLoading ? <LoadingState text="加载项目中..." /> : null}
+          {projectQuery.error ? <ErrorState text={String((projectQuery.error as Error).message)} /> : null}
+          {projectQuery.data ? content : null}
+        </div>
+
+        {/* Delete dialog */}
+        <Dialog
+          open={showDeleteDialog}
+          onClose={() => setShowDeleteDialog(false)}
+          title="删除项目"
+          description={`确定要删除项目「${projectQuery.data?.title}」吗？此操作不可撤销，所有相关数据将被永久删除。`}
+          size="sm"
+        >
+          {deleteMutation.error && <ErrorState text={getErrorMessage(deleteMutation.error)} />}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setShowDeleteDialog(false)}>取消</Button>
+            <Button
+              variant="danger"
+              loading={deleteMutation.isPending}
+              onClick={() => deleteMutation.mutate()}
+              leftIcon={<Trash2 className="h-3.5 w-3.5" />}
+            >
+              确认删除
+            </Button>
+          </DialogFooter>
+        </Dialog>
+      </ProjectLayout>
     </div>
   )
 }

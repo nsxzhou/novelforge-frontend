@@ -569,8 +569,8 @@ export function MemoryPanel({
       {workspaceView === 'states' ? (
         <Card padding="none" className="overflow-hidden">
           <div className="grid lg:grid-cols-[320px_minmax(0,1fr)]">
-            <div className="space-y-4 border-b border-border p-4 lg:border-b-0 lg:border-r">
-              <div className="flex items-center justify-between gap-3">
+            <div className="flex max-h-[70vh] flex-col space-y-4 border-b border-border p-4 lg:border-b-0 lg:border-r">
+              <div className="flex shrink-0 items-center justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-medium text-foreground">角色状态列表</h3>
                   <p className="mt-1 text-xs text-muted-foreground">先选角色，再在右侧审查来源、连续性与修订内容。</p>
@@ -592,7 +592,7 @@ export function MemoryPanel({
                   className="py-8"
                 />
               ) : (
-                <div className="space-y-1.5">
+                <div className="min-h-0 flex-1 overflow-y-auto space-y-1.5">
                   {scopedStates.map((state) => {
                     const relatedChapter = chaptersById[state.chapter_id] ?? null
                     const isActive = selectedStateId === state.id
@@ -855,8 +855,8 @@ export function MemoryPanel({
       {workspaceView === 'timeline' ? (
         <Card padding="none" className="overflow-hidden">
           <div className="grid lg:grid-cols-[320px_minmax(0,1fr)]">
-            <div className="space-y-4 border-b border-border p-4 lg:border-b-0 lg:border-r">
-              <div className="flex items-center justify-between gap-3">
+            <div className="flex max-h-[70vh] flex-col space-y-4 border-b border-border p-4 lg:border-b-0 lg:border-r">
+              <div className="flex shrink-0 items-center justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-medium text-foreground">时间线列表</h3>
                   <p className="mt-1 text-xs text-muted-foreground">按事件顺序审查，再在右侧修订或补录细节。</p>
@@ -898,7 +898,7 @@ export function MemoryPanel({
                   className="py-8"
                 />
               ) : (
-                <div className="space-y-1.5">
+                <div className="min-h-0 flex-1 overflow-y-auto space-y-1.5">
                   {sortedTimelineEvents.map((event) => {
                     const relatedChapter = chaptersById[event.chapter_id] ?? null
                     const isActive = !showCreateEventForm && selectedEventId === event.id

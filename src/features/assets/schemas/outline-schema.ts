@@ -21,7 +21,7 @@ export const outlineVolumeSchema = outlineVolumeSeedSchema.extend({
   title: z.string().default(''),
   summary: z.string().default(''),
   key_events: z.array(z.string()).default([]),
-  chapters: z.array(outlineChapterPlanSchema).min(1, '每个分卷至少需要一个章节'),
+  chapters: z.array(outlineChapterPlanSchema),
 }).strict()
 
 export const outlineSchema = outlineSeedSchema.extend({
@@ -36,11 +36,6 @@ export const outlineSchema = outlineSeedSchema.extend({
   const ordinals = chapters.map((chapter) => chapter.ordinal).sort((a, b) => a - b)
 
   if (ordinals.length === 0) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: '至少需要一个计划章节',
-      path: ['volumes'],
-    })
     return
   }
 

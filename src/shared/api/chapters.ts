@@ -8,7 +8,7 @@ export type ChapterGenerationResponse = { chapter: Chapter; generation_record: G
 
 export type CreateChapterInput = {
   ordinal: number
-  instruction: string
+  instruction?: string
   pov_character?: string
 }
 

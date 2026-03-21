@@ -169,8 +169,8 @@ export function KGPanel({ projectId }: KGPanelProps) {
 
       {!isLoading && !error && nodes.length > 0 && (
         <div className="grid gap-4 lg:grid-cols-[1fr_300px]">
-          <Card padding="none">
-            <div className="h-[500px]">
+          <Card padding="none" className="overflow-hidden">
+            <div className="h-[500px] overflow-hidden">
               <KGGraph
                 nodes={filteredNodes}
                 edges={edges}
