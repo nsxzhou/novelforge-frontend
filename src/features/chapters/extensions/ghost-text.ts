@@ -140,7 +140,7 @@ export const GhostText = Extension.create<GhostTextOptions>({
 
               clearPending()
 
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TipTap's editor.storage is typed as Record<string, any>; no narrower type is exported
               const storage = (editor.storage as any).ghostText as {
                 chapterId: string | null
                 enabled: boolean
@@ -163,7 +163,7 @@ export const GhostText = Extension.create<GhostTextOptions>({
 
               timer = setTimeout(() => {
                 // Re-check storage values (may have changed)
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TipTap's editor.storage is typed as Record<string, any>; no narrower type is exported
                 const currentStorage = (editor.storage as any).ghostText as {
                   chapterId: string | null
                   enabled: boolean

@@ -170,7 +170,7 @@ export function WritePage() {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- exclude saveMutation to avoid infinite loop (mutation object is unstable)
   }, [editedContent, hasUnsavedChanges, isDraft, chapterId])
 
   // Escape key to go back
@@ -182,7 +182,7 @@ export function WritePage() {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- exclude goBack (unstable plain function); re-register only when closure-captured values change
   }, [projectId, leftSidebarOpen, showCreateDialog])
 
   // Reset edited content when chapter changes
@@ -225,7 +225,7 @@ export function WritePage() {
     return () => {
       abort.abort()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally run only when generation mode or route key changes; exclude streaming callbacks and navigate to avoid restarting the stream
   }, [isGenerateMode, location.key])
 
   // Cleanup on unmount
