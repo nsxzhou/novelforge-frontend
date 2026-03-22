@@ -1,6 +1,6 @@
 import { act } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AssetsPanel } from './assets-panel'
@@ -148,17 +148,13 @@ describe('AssetsPanel', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByText('最终效果预览')).toBeTruthy()
+      expect(screen.getByText('生成完成')).toBeTruthy()
     })
 
-    const previewCard = screen.getByText('最终效果预览').closest('div')
-    expect(previewCard).toBeTruthy()
-
-    const previewScope = within(previewCard!)
-    expect(previewScope.getByText('苏砚')).toBeTruthy()
-    expect(previewScope.getByText('冷静')).toBeTruthy()
+    expect(screen.getAllByText('苏砚').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('冷静').length).toBeGreaterThan(0)
     expect(screen.queryByText(/"_schema"/)).toBeNull()
-    expect(screen.queryByRole('heading', { name: '编辑资产' })).toBeNull()
+    expect(screen.queryByDisplayValue('主角人设')).toBeNull()
   })
 
   it('opens the asset editor only when the user clicks edit from the preview', async () => {
@@ -213,13 +209,12 @@ describe('AssetsPanel', () => {
     await user.click(screen.getByRole('button', { name: '编辑资产' }))
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: '编辑资产' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: '更新资产' })).toBeTruthy()
     })
-
     expect(screen.getByDisplayValue('主角人设')).toBeTruthy()
   })
 
-  it('submits refine request and closes the inline refine panel after success', async () => {
+  it('shows refine preview after success and closes after apply', async () => {
     assets = [{
       id: 'asset-3',
       project_id: 'project-1',
@@ -271,9 +266,113 @@ describe('AssetsPanel', () => {
     })
 
     await waitFor(() => {
-      expect(screen.queryByText('AI 资产优化')).toBeNull()
+      expect(screen.getByText('优化结果预览')).toBeTruthy()
     })
-    expect(screen.getByText('AI 资产已优化')).toBeTruthy()
+
+    await user.click(screen.getByRole('button', { name: '应用优化' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText('优化结果预览')).toBeNull()
+    })
+    expect(screen.getByText('强化后角色设定')).toBeTruthy()
+  })
+
+  it('opens refine from the outline tree view when the outline tab is active', async () => {
+    assets = [{
+      id: 'asset-outline-1',
+      project_id: 'project-1',
+      type: 'outline',
+      title: '主线大纲',
+      content: JSON.stringify({
+        _schema: 'outline_v2',
+        premise: '风雪中的追凶',
+        volumes: [{
+          title: '第一卷',
+          chapters: [{
+            ordinal: 1,
+            title: '雪夜来客',
+          }],
+        }],
+      }),
+      content_schema: 'outline_v2',
+      created_at: '2026-03-19T10:00:00Z',
+      updated_at: '2026-03-19T10:00:00Z',
+    }]
+
+    renderPanel()
+    const user = userEvent.setup()
+
+    await screen.findByText('主线大纲')
+    await user.click(screen.getByRole('button', { name: '📋 大纲' }))
+
+    await screen.findByRole('button', { name: 'AI 优化大纲' })
+    await user.click(screen.getByRole('button', { name: 'AI 优化大纲' }))
+    await user.type(
+      screen.getByPlaceholderText('描述你希望 AI 优化的方向，例如补充细节、强化人物动机、梳理结构'),
+      '强化转折节奏',
+    )
+    await user.click(screen.getByRole('button', { name: '开始优化' }))
+
+    expect(refineAssetStreamMock).toHaveBeenCalledWith(
+      'asset-outline-1',
+      { instruction: '强化转折节奏' },
+      expect.any(Object),
+      expect.any(AbortSignal),
+    )
+  })
+
+  it('preserves content_schema when outline tree autosave updates the asset', async () => {
+    assets = [{
+      id: 'asset-outline-keep-schema',
+      project_id: 'project-1',
+      type: 'outline',
+      title: '主线大纲',
+      content: JSON.stringify({
+        _schema: 'outline_v2',
+        premise: '旧前提',
+        themes: [],
+        central_conflict: '',
+        volumes: [{
+          title: '第一卷',
+          summary: '',
+          key_events: [],
+          chapters: [{
+            ordinal: 1,
+            title: '雪夜来客',
+            summary: '',
+            purpose: '',
+            must_include: [],
+          }],
+        }],
+        ending: '',
+        notes: '',
+      }),
+      content_schema: 'outline_v2',
+      created_at: '2026-03-19T10:00:00Z',
+      updated_at: '2026-03-19T10:00:00Z',
+    }]
+
+    renderPanel()
+    const user = userEvent.setup()
+
+    await screen.findByText('主线大纲')
+    await user.click(screen.getByRole('button', { name: '📋 大纲' }))
+    await screen.findByPlaceholderText('一句话概括故事核心')
+
+    const premiseInput = screen.getByPlaceholderText('一句话概括故事核心')
+    await user.clear(premiseInput)
+    await user.type(premiseInput, '新前提')
+
+    await waitFor(() => {
+      expect(updateAssetMock).toHaveBeenCalledWith(
+        'asset-outline-keep-schema',
+        expect.objectContaining({
+          type: 'outline',
+          title: '主线大纲',
+          content_schema: 'outline_v2',
+        }),
+      )
+    }, { timeout: 2000 })
   })
 
   it('shows an explicit repair state for invalid outline_v2 structured content', async () => {

@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Bot, FilePenLine, Square, Trash2, Plus, Boxes, Clock, ArrowUpCircle, WandSparkles } from 'lucide-react'
+import { Bot, FilePenLine, Square, Trash2, Plus, Boxes, Clock, ArrowUpCircle, WandSparkles, Check, X, RotateCcw } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { createAsset, deleteAsset, generateAssetStream, listAllAssets, refineAssetStream, updateAsset } from '@/shared/api/assets'
 import type { AssetGenerationResponse } from '@/shared/api/assets'
@@ -25,7 +25,6 @@ import { variants } from '@/shared/lib/motion'
 import { formatRelativeTime } from '@/shared/lib/format'
 import { StructuredAssetEditor } from './components/structured-asset-editor'
 import { AssetContentDisplay } from './components/asset-content-display'
-import { AssetEditorDrawer } from './components/asset-editor-drawer'
 import { OutlineTreeView } from './components/outline-tree-view'
 import {
   ASSET_TYPE_TO_SCHEMA,
@@ -58,8 +57,6 @@ const defaultAssetValue: AssetFormValue = { type: 'outline', title: '', content:
 const defaultGenerateValue: GenerateFormValue = { type: 'character', instruction: '' }
 const defaultRefineValue: RefineFormValue = { instruction: '' }
 
-type AssetEditorMode = { type: 'closed' } | { type: 'create' } | { type: 'edit'; asset: Asset }
-
 const typeLabels: Record<AssetType, string> = {
   worldbuilding: '世界观',
   character: '角色',
@@ -83,9 +80,16 @@ const filterTabs: { key: FilterType; label: string }[] = [
 
 export function AssetsPanel({ projectId }: { projectId: string }) {
   const [filterType, setFilterType] = useState<FilterType>('all')
-  const [editorMode, setEditorMode] = useState<AssetEditorMode>({ type: 'closed' })
-  const [showGenerate, setShowGenerate] = useState(false)
+  // Inline editing: 'new' for create, asset.id for edit, null for none
+  const [editingAssetId, setEditingAssetId] = useState<string | null>(null)
+  // AI Generate modal
+  const [showGenerateModal, setShowGenerateModal] = useState(false)
+  // AI Refine modal
+  const [showRefineModal, setShowRefineModal] = useState(false)
   const [refineTarget, setRefineTarget] = useState<Asset | null>(null)
+  const [refineOriginalSnapshot, setRefineOriginalSnapshot] = useState<Asset | null>(null)
+  const [refinedPreview, setRefinedPreview] = useState<Asset | null>(null)
+
   const [deleteTarget, setDeleteTarget] = useState<Asset | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isStreaming, setIsStreaming] = useState(false)
@@ -116,7 +120,7 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
   const supportsStructured = watchedType in ASSET_TYPE_TO_SCHEMA
   const isAssetDirty = assetForm.formState.isDirty
 
-  // Outline data parsing for tree view (1C)
+  // Outline data parsing for tree view
   const outlineAsset = useMemo(
     () => ((filterType === 'all' ? assetsQuery.data : allAssetsQuery.data) ?? []).find((asset) => asset.type === 'outline') ?? null,
     [allAssetsQuery.data, assetsQuery.data, filterType],
@@ -133,84 +137,33 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
     return parseStructuredContent(outlineAsset.content, 'outline') as OutlineData | null
   }, [outlineAsset, outlineIsStructured])
 
-  function resetAssetEditor(nextMode: AssetEditorMode) {
-    setEditorMode(nextMode)
-    if (nextMode.type === 'edit') {
-      assetForm.reset({
-        type: nextMode.asset.type,
-        title: nextMode.asset.title,
-        content: nextMode.asset.content,
-      })
-      return
-    }
-
-    assetForm.reset(defaultAssetValue)
-  }
-
   function confirmDiscardDraft() {
     if (!isAssetDirty) return true
     return window.confirm('当前资产编辑尚未保存，确认放弃这些更改并切换目标吗？')
   }
 
-  function openAssetEditor(nextMode: AssetEditorMode) {
+  function startEditing(asset: Asset) {
+    if (editingAssetId && !confirmDiscardDraft()) return
+    setEditingAssetId(asset.id)
+    assetForm.reset({
+      type: asset.type,
+      title: asset.title,
+      content: asset.content,
+    })
+    setError(null)
+  }
+
+  function startCreating() {
+    if (editingAssetId && !confirmDiscardDraft()) return
+    setEditingAssetId('new')
+    assetForm.reset(defaultAssetValue)
+    setError(null)
+  }
+
+  function cancelEditing() {
     if (!confirmDiscardDraft()) return
-
-    abortRef.current?.abort()
-    abortRef.current = null
-    setIsStreaming(false)
-    setGeneratedAssetPreview(null)
-    setRefineTarget(null)
-    refineForm.reset(defaultRefineValue)
-    resetAssetEditor(nextMode)
-    setShowGenerate(false)
-    setError(null)
-  }
-
-  function closeGeneratePanel() {
-    abortRef.current?.abort()
-    abortRef.current = null
-    setIsStreaming(false)
-    setGeneratedAssetPreview(null)
-    setShowGenerate(false)
-    setError(null)
-    generateForm.reset(defaultGenerateValue)
-  }
-
-  function closeRefinePanel() {
-    abortRef.current?.abort()
-    abortRef.current = null
-    setIsStreaming(false)
-    setRefineTarget(null)
-    setError(null)
-    refineForm.reset(defaultRefineValue)
-  }
-
-  function openGeneratePanel() {
-    if (showForm && !confirmDiscardDraft()) return
-
-    abortRef.current?.abort()
-    abortRef.current = null
-    setIsStreaming(false)
-    setGeneratedAssetPreview(null)
-    setRefineTarget(null)
-    refineForm.reset(defaultRefineValue)
-    resetAssetEditor({ type: 'closed' })
-    generateForm.reset(defaultGenerateValue)
-    setError(null)
-    setShowGenerate(true)
-  }
-
-  function openRefinePanel(asset: Asset) {
-    if (showForm && !confirmDiscardDraft()) return
-
-    abortRef.current?.abort()
-    abortRef.current = null
-    setIsStreaming(false)
-    setGeneratedAssetPreview(null)
-    setShowGenerate(false)
-    resetAssetEditor({ type: 'closed' })
-    setRefineTarget(asset)
-    refineForm.reset(defaultRefineValue)
+    setEditingAssetId(null)
+    assetForm.reset(defaultAssetValue)
     setError(null)
   }
 
@@ -222,7 +175,8 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
     mutationFn: createAsset.bind(null, projectId),
     onSuccess: async () => {
       await refreshAssets()
-      resetAssetEditor({ type: 'closed' })
+      setEditingAssetId(null)
+      assetForm.reset(defaultAssetValue)
       setError(null)
       toast('资产已创建')
     },
@@ -233,7 +187,8 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
     mutationFn: ({ assetId, input }: { assetId: string; input: Parameters<typeof updateAsset>[1] }) => updateAsset(assetId, input),
     onSuccess: async () => {
       await refreshAssets()
-      resetAssetEditor({ type: 'closed' })
+      setEditingAssetId(null)
+      assetForm.reset(defaultAssetValue)
       setError(null)
       toast('资产已更新')
     },
@@ -251,16 +206,44 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
     onError: (e) => setError(getErrorMessage(e)),
   })
 
-  // Debounced save for outline tree view edits (1C)
+  // Debounced save for outline tree view edits
   function handleOutlineTreeChange(data: OutlineData) {
     if (!outlineAsset) return
     if (outlineSaveTimerRef.current) clearTimeout(outlineSaveTimerRef.current)
     outlineSaveTimerRef.current = setTimeout(() => {
       const serialized = serializeStructuredContent(data)
-      updateAsset(outlineAsset.id, { content: serialized, type: 'outline', title: outlineAsset.title })
+      updateAsset(outlineAsset.id, {
+        content: serialized,
+        type: 'outline',
+        title: outlineAsset.title,
+        content_schema: outlineAsset.content_schema,
+      })
         .then(() => refreshAssets())
         .catch((e) => toast(getErrorMessage(e), 'error'))
     }, 800)
+  }
+
+  // --- AI Generate Modal ---
+
+  function openGenerateModal() {
+    abortRef.current?.abort()
+    abortRef.current = null
+    setIsStreaming(false)
+    setGeneratedAssetPreview(null)
+    // If outline already exists, default to 'character' instead of allowing 'outline'
+    generateForm.reset(outlineAsset ? { ...defaultGenerateValue, type: 'character' } : defaultGenerateValue)
+    setError(null)
+    setShowGenerateModal(true)
+  }
+
+  function closeGenerateModal() {
+    abortRef.current?.abort()
+    abortRef.current = null
+    setIsStreaming(false)
+    setGeneratedAssetPreview(null)
+    setShowGenerateModal(false)
+    setError(null)
+    generateForm.reset(defaultGenerateValue)
   }
 
   function handleGenerateSubmit(value: GenerateFormValue) {
@@ -269,7 +252,7 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
     setGeneratedAssetPreview(null)
     abortRef.current = new AbortController()
     generateAssetStream(projectId, value, {
-      onContent: () => {},
+      onContent: () => { },
       onDone: async (result: AssetGenerationResponse) => {
         abortRef.current = null
         setIsStreaming(false)
@@ -287,16 +270,10 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
     }, abortRef.current.signal)
   }
 
-  function cancelGeneration() {
-    abortRef.current?.abort()
-    abortRef.current = null
-    setIsStreaming(false)
-    setError(null)
-  }
-
   function handleEditGeneratedAsset() {
     if (!generatedAssetPreview) return
-    openAssetEditor({ type: 'edit', asset: generatedAssetPreview })
+    closeGenerateModal()
+    startEditing(generatedAssetPreview)
   }
 
   function handleGenerateAgain() {
@@ -305,21 +282,47 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
     generateForm.reset(defaultGenerateValue)
   }
 
+  // --- AI Refine Modal ---
+
+  function openRefineModal(asset: Asset) {
+    abortRef.current?.abort()
+    abortRef.current = null
+    setIsStreaming(false)
+    setRefineTarget(asset)
+    setRefineOriginalSnapshot({ ...asset })
+    setRefinedPreview(null)
+    refineForm.reset(defaultRefineValue)
+    setError(null)
+    setShowRefineModal(true)
+  }
+
+  function closeRefineModal() {
+    abortRef.current?.abort()
+    abortRef.current = null
+    setIsStreaming(false)
+    setShowRefineModal(false)
+    setRefineTarget(null)
+    setRefineOriginalSnapshot(null)
+    setRefinedPreview(null)
+    setError(null)
+    refineForm.reset(defaultRefineValue)
+  }
+
   function handleRefineSubmit(value: RefineFormValue) {
     if (!refineTarget) return
 
     setIsStreaming(true)
     setError(null)
+    setRefinedPreview(null)
     abortRef.current = new AbortController()
     refineAssetStream(refineTarget.id, value, {
-      onContent: () => {},
-      onDone: async () => {
+      onContent: () => { },
+      onDone: async (result: AssetGenerationResponse) => {
         abortRef.current = null
         setIsStreaming(false)
-        setRefineTarget(null)
+        setRefinedPreview(result.asset)
         refineForm.reset(defaultRefineValue)
         await refreshAssets()
-        toast('AI 资产已优化')
       },
       onError: (errMsg: string) => {
         abortRef.current = null
@@ -329,6 +332,46 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
     }, abortRef.current.signal)
   }
 
+  async function handleApplyRefine() {
+    closeRefineModal()
+    toast('AI 优化已应用')
+  }
+
+  async function handleDiscardRefine() {
+    if (!refineOriginalSnapshot) {
+      closeRefineModal()
+      return
+    }
+    try {
+      await updateAsset(refineOriginalSnapshot.id, {
+        type: refineOriginalSnapshot.type,
+        title: refineOriginalSnapshot.title,
+        content: refineOriginalSnapshot.content,
+        content_schema: refineOriginalSnapshot.content_schema || undefined,
+      })
+      await refreshAssets()
+      toast('已放弃优化，资产已恢复原内容')
+    } catch (e) {
+      toast(getErrorMessage(e), 'error')
+    }
+    closeRefineModal()
+  }
+
+  function handleRefineAgain() {
+    setRefinedPreview(null)
+    setError(null)
+    refineForm.reset(defaultRefineValue)
+  }
+
+  function cancelStreaming() {
+    abortRef.current?.abort()
+    abortRef.current = null
+    setIsStreaming(false)
+    setError(null)
+  }
+
+  // --- Asset submit ---
+
   const sortedAssets = useMemo(() => [...(assetsQuery.data ?? [])].sort((a, b) => b.updated_at.localeCompare(a.updated_at)), [assetsQuery.data])
   const isAssetSubmitting = createMutation.isPending || updateMutation.isPending
 
@@ -337,34 +380,22 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
       ...value,
       content_schema: supportsStructured ? ASSET_TYPE_TO_SCHEMA[value.type] : undefined,
     }
-    if (editorMode.type === 'edit') {
-      updateMutation.mutate({ assetId: editorMode.asset.id, input: payload })
+    if (editingAssetId && editingAssetId !== 'new') {
+      updateMutation.mutate({ assetId: editingAssetId, input: payload })
       return
     }
     createMutation.mutate(payload)
   }
 
-  function handleEdit(asset: Asset) {
-    openAssetEditor({ type: 'edit', asset })
-  }
-
   function handleCreateAsset() {
     if (outlineAsset) {
-      openAssetEditor({ type: 'edit', asset: outlineAsset })
+      startEditing(outlineAsset)
       return
     }
-    openAssetEditor({ type: 'create' })
+    startCreating()
   }
 
-  function handleCancelEdit() {
-    if (!confirmDiscardDraft()) return
-    resetAssetEditor({ type: 'closed' })
-    setError(null)
-  }
-
-  const showForm = editorMode.type !== 'closed'
-
-  // Determine if we should show the outline tree view (1C)
+  // Determine if we should show the outline tree view
   const showOutlineTree = filterType === 'outline' && outlineIsStructured && outlineParsedData !== null
   const showOutlineUpgradeHint = filterType === 'outline' && outlineAsset && !outlineIsStructured
 
@@ -382,13 +413,7 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => {
-              if (showGenerate) {
-                closeGeneratePanel()
-                return
-              }
-              openGeneratePanel()
-            }}
+            onClick={openGenerateModal}
             leftIcon={<Bot className="h-3.5 w-3.5" />}
           >
             AI 生成
@@ -403,7 +428,7 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
         </div>
       </div>
 
-      {/* Tab filter (1A) */}
+      {/* Tab filter */}
       <Tabs
         id="asset-filter"
         tabs={filterTabs}
@@ -411,115 +436,16 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
         onChange={setFilterType}
       />
 
-      {/* AI Generation panel */}
-      {showGenerate && (
-        <Card>
-          <h3 className="text-sm font-medium text-foreground mb-4">AI 资产生成</h3>
-          <form className="space-y-4" onSubmit={generateForm.handleSubmit(handleGenerateSubmit)}>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <FormField label="目标类型">
-                <Select {...generateForm.register('type')}>
-                  <option value="worldbuilding">世界观</option>
-                  <option value="character">角色</option>
-                  <option value="outline">大纲</option>
-                </Select>
-              </FormField>
-            </div>
-            <FormField label="生成要求">
-              <Textarea rows={3} {...generateForm.register('instruction')} placeholder="描述你希望生成的资产内容" />
-            </FormField>
-            <div className="flex gap-2">
-              <Button type="submit" disabled={isStreaming} leftIcon={<Bot className="h-3.5 w-3.5" />}>发起生成</Button>
-              {isStreaming && <Button type="button" variant="danger" size="sm" onClick={cancelGeneration} leftIcon={<Square className="h-3.5 w-3.5" />}>取消</Button>}
-              <Button type="button" variant="ghost" size="sm" onClick={closeGeneratePanel}>关闭</Button>
-            </div>
-          </form>
-          {error && <ErrorState text={error} className="mt-4" />}
-          {isStreaming && (
-            <div className="mt-4 rounded-lg border border-[#E2E8F0] bg-muted p-4">
-              <LoadingState text="AI 正在整理最终资产预览..." className="w-full justify-center border-0 bg-transparent px-0 py-0 text-foreground" />
-              <p className="mt-2 text-center text-xs text-muted-foreground">生成完成后将在此处直接展示最终效果。</p>
-            </div>
-          )}
-          {generatedAssetPreview && !isStreaming && (
-            <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50/60 p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <p className="text-xs font-medium uppercase tracking-[0.12em] text-emerald-700">生成完成</p>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-base">{typeIcons[generatedAssetPreview.type]}</span>
-                    <h4 className="text-sm font-semibold text-foreground">{generatedAssetPreview.title}</h4>
-                    <Badge variant="success">{typeLabels[generatedAssetPreview.type]}</Badge>
-                  </div>
-                  <p className="text-sm text-emerald-700">以下为最终效果预览，可确认后再进入编辑。</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" size="sm" onClick={handleEditGeneratedAsset} leftIcon={<FilePenLine className="h-3.5 w-3.5" />}>
-                    编辑资产
-                  </Button>
-                  <Button type="button" variant="secondary" size="sm" onClick={handleGenerateAgain}>
-                    继续生成
-                  </Button>
-                  <Button type="button" variant="ghost" size="sm" onClick={closeGeneratePanel}>
-                    关闭
-                  </Button>
-                </div>
-              </div>
-              <div className="mt-4 rounded-lg border border-white/80 bg-white p-4">
-                <p className="mb-2 text-xs font-medium text-foreground">最终效果预览</p>
-                <AssetContentDisplay content={generatedAssetPreview.content} assetType={generatedAssetPreview.type} />
-              </div>
-            </div>
-          )}
-        </Card>
-      )}
-
-      {refineTarget && (
-        <Card>
-          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-            <div className="space-y-1">
-              <h3 className="text-sm font-medium text-foreground">AI 资产优化</h3>
-              <p className="text-sm text-muted-foreground">当前资产：{refineTarget.title}</p>
-            </div>
-            <Badge variant="default">{typeLabels[refineTarget.type]}</Badge>
-          </div>
-          <form className="space-y-4" onSubmit={refineForm.handleSubmit(handleRefineSubmit)}>
-            <FormField label="优化要求" error={refineForm.formState.errors.instruction?.message}>
-              <Textarea rows={3} {...refineForm.register('instruction')} placeholder="描述你希望 AI 优化的方向，例如补充细节、强化人物动机、梳理结构" />
-            </FormField>
-            <div className="flex gap-2">
-              <Button type="submit" disabled={isStreaming} leftIcon={<WandSparkles className="h-3.5 w-3.5" />}>
-                开始优化
-              </Button>
-              {isStreaming ? (
-                <Button type="button" variant="danger" size="sm" onClick={cancelGeneration} leftIcon={<Square className="h-3.5 w-3.5" />}>
-                  取消
-                </Button>
-              ) : null}
-              <Button type="button" variant="ghost" size="sm" onClick={closeRefinePanel}>
-                关闭
-              </Button>
-            </div>
-          </form>
-          {error && <ErrorState text={error} className="mt-4" />}
-          {isStreaming && (
-            <div className="mt-4 rounded-lg border border-[#E2E8F0] bg-muted p-4">
-              <LoadingState text="AI 正在优化资产..." className="w-full justify-center border-0 bg-transparent px-0 py-0 text-foreground" />
-              <p className="mt-2 text-center text-xs text-muted-foreground">优化完成后会自动刷新资产列表。</p>
-            </div>
-          )}
-        </Card>
-      )}
-
-      {/* Outline tree view (1C) */}
+      {/* Outline tree view */}
       {showOutlineTree && (
         <OutlineTreeView
           defaultValues={outlineParsedData}
           onChange={handleOutlineTreeChange}
+          onRefineOutline={() => outlineAsset && openRefineModal(outlineAsset)}
         />
       )}
 
-      {/* Outline upgrade hint (1C) */}
+      {/* Outline upgrade hint */}
       {showOutlineUpgradeHint && (
         <Card padding="md">
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
@@ -532,14 +458,54 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
         </Card>
       )}
 
-      {/* Asset list (hidden when outline tree is shown) */}
+      {/* Asset list with inline editing */}
       {!showOutlineTree && (
         <>
           {assetsQuery.isLoading && <LoadingState text="正在加载资产..." />}
           {assetsQuery.error && <ErrorState text={getErrorMessage(assetsQuery.error)} />}
-          {error && !showForm && !showGenerate && !refineTarget && <ErrorState text={error} />}
+          {error && !editingAssetId && !showGenerateModal && !showRefineModal && <ErrorState text={error} />}
 
-          {sortedAssets.length === 0 && !assetsQuery.isLoading ? (
+          {/* Inline create form at top of list */}
+          {editingAssetId === 'new' && (
+            <Card padding="md">
+              <form className="space-y-4" onSubmit={assetForm.handleSubmit(handleAssetSubmit)}>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <FormField label="资产类型">
+                    <Select {...assetForm.register('type')}>
+                      <option value="worldbuilding">世界观</option>
+                      <option value="character">角色</option>
+                      <option value="outline">大纲</option>
+                    </Select>
+                  </FormField>
+                  <FormField label="资产标题" error={assetForm.formState.errors.title?.message}>
+                    <Input {...assetForm.register('title')} placeholder="例如：主角背景" />
+                  </FormField>
+                </div>
+                <FormField label="资产内容" error={assetForm.formState.errors.content?.message}>
+                  {supportsStructured ? (
+                    <StructuredAssetEditor
+                      assetType={watchedType}
+                      content={assetForm.getValues('content')}
+                      onChange={(val) => assetForm.setValue('content', val, { shouldDirty: true, shouldValidate: true })}
+                    />
+                  ) : (
+                    <Textarea rows={6} {...assetForm.register('content')} placeholder="资产正文内容" />
+                  )}
+                </FormField>
+                {error && editingAssetId === 'new' && <ErrorState text={error} />}
+                <div className="flex gap-2">
+                  <Button type="submit" loading={isAssetSubmitting} leftIcon={<Check className="h-3.5 w-3.5" />}>
+                    保存资产
+                  </Button>
+                  <Button type="button" variant="ghost" onClick={cancelEditing} leftIcon={<X className="h-3.5 w-3.5" />}>
+                    取消
+                  </Button>
+                </div>
+              </form>
+            </Card>
+          )}
+
+          {sortedAssets.length === 0 && !assetsQuery.isLoading && editingAssetId !== 'new' ? (
             <EmptyState
               icon={<Boxes className="h-6 w-6" />}
               title="暂无设定资产"
@@ -559,43 +525,84 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
             >
               {sortedAssets.map((asset) => (
                 <motion.div key={asset.id} variants={variants.fadeInUp} transition={{ duration: 0.15 }}>
-                  <Card padding="md" interactive onClick={() => handleEdit(asset)}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2.5 mb-1.5">
-                          <span className="text-base">{typeIcons[asset.type]}</span>
-                          <h3 className="text-sm font-medium tracking-tight text-foreground truncate">
-                            {asset.title}
-                          </h3>
-                          <Badge variant="default">{typeLabels[asset.type]}</Badge>
+                  {editingAssetId === asset.id ? (
+                    /* Inline edit form */
+                    <Card padding="md">
+                      <form className="space-y-4" onSubmit={assetForm.handleSubmit(handleAssetSubmit)}>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <FormField label="资产类型">
+                            <Select {...assetForm.register('type')}>
+                              <option value="worldbuilding">世界观</option>
+                              <option value="character">角色</option>
+                              <option value="outline">大纲</option>
+                            </Select>
+                          </FormField>
+                          <FormField label="资产标题" error={assetForm.formState.errors.title?.message}>
+                            <Input {...assetForm.register('title')} placeholder="例如：主角背景" />
+                          </FormField>
                         </div>
-                        <div className="mb-2">
-                          <AssetContentDisplay content={asset.content} assetType={asset.type} />
+                        <FormField label="资产内容" error={assetForm.formState.errors.content?.message}>
+                          {supportsStructured ? (
+                            <StructuredAssetEditor
+                              assetType={watchedType}
+                              content={assetForm.getValues('content')}
+                              onChange={(val) => assetForm.setValue('content', val, { shouldDirty: true, shouldValidate: true })}
+                            />
+                          ) : (
+                            <Textarea rows={6} {...assetForm.register('content')} placeholder="资产正文内容" />
+                          )}
+                        </FormField>
+                        {error && editingAssetId === asset.id && <ErrorState text={error} />}
+                        <div className="flex gap-2">
+                          <Button type="submit" loading={isAssetSubmitting} leftIcon={<Check className="h-3.5 w-3.5" />}>
+                            更新资产
+                          </Button>
+                          <Button type="button" variant="ghost" onClick={cancelEditing} leftIcon={<X className="h-3.5 w-3.5" />}>
+                            取消
+                          </Button>
                         </div>
-                        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                          <Clock className="h-3 w-3" />
-                          {formatRelativeTime(asset.updated_at)}
+                      </form>
+                    </Card>
+                  ) : (
+                    /* Read-only asset card */
+                    <Card padding="md" interactive onClick={() => startEditing(asset)}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2.5 mb-1.5">
+                            <span className="text-base">{typeIcons[asset.type]}</span>
+                            <h3 className="text-sm font-medium tracking-tight text-foreground truncate">
+                              {asset.title}
+                            </h3>
+                            <Badge variant="default">{typeLabels[asset.type]}</Badge>
+                          </div>
+                          <div className="mb-2">
+                            <AssetContentDisplay content={asset.content} assetType={asset.type} />
+                          </div>
+                          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                            <Clock className="h-3 w-3" />
+                            {formatRelativeTime(asset.updated_at)}
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 gap-1" onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="sm" onClick={() => openRefineModal(asset)} leftIcon={<WandSparkles className="h-3.5 w-3.5" />}>
+                            AI 优化
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => startEditing(asset)} leftIcon={<FilePenLine className="h-3.5 w-3.5" />}>
+                            编辑
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setDeleteTarget(asset)}
+                            className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                            leftIcon={<Trash2 className="h-3.5 w-3.5" />}
+                          >
+                            删除
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex shrink-0 gap-1" onClick={(e) => e.stopPropagation()}>
-                        <Button variant="ghost" size="sm" onClick={() => openRefinePanel(asset)} leftIcon={<WandSparkles className="h-3.5 w-3.5" />}>
-                          AI 优化
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleEdit(asset)} leftIcon={<FilePenLine className="h-3.5 w-3.5" />}>
-                          编辑
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setDeleteTarget(asset)}
-                          className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                          leftIcon={<Trash2 className="h-3.5 w-3.5" />}
-                        >
-                          删除
-                        </Button>
-                      </div>
-                    </div>
-                  </Card>
+                    </Card>
+                  )}
                 </motion.div>
               ))}
             </motion.div>
@@ -625,45 +632,135 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
         </DialogFooter>
       </Dialog>
 
-      {/* Editor drawer (1B) */}
-      <AssetEditorDrawer
-        open={showForm}
-        onClose={handleCancelEdit}
-        title={editorMode.type === 'create' ? '创建资产' : '编辑资产'}
+      {/* AI Generate Modal */}
+      <Dialog
+        open={showGenerateModal}
+        onClose={() => { if (!isStreaming) closeGenerateModal() }}
+        title="AI 资产生成"
+        size="xl"
       >
-        <form className="space-y-4" onSubmit={assetForm.handleSubmit(handleAssetSubmit)}>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <FormField label="资产类型">
-              <Select {...assetForm.register('type')}>
-                <option value="worldbuilding">世界观</option>
-                <option value="character">角色</option>
-                <option value="outline">大纲</option>
-              </Select>
-            </FormField>
-            <FormField label="资产标题" error={assetForm.formState.errors.title?.message}>
-              <Input {...assetForm.register('title')} placeholder="例如：主角背景" />
-            </FormField>
-          </div>
-          <FormField label="资产内容" error={assetForm.formState.errors.content?.message}>
-            {supportsStructured ? (
-              <StructuredAssetEditor
-                assetType={watchedType}
-                content={assetForm.getValues('content')}
-                onChange={(val) => assetForm.setValue('content', val, { shouldDirty: true, shouldValidate: true })}
-              />
-            ) : (
-              <Textarea rows={6} {...assetForm.register('content')} placeholder="资产正文内容" />
+        {!generatedAssetPreview ? (
+          <>
+            <form className="space-y-4" onSubmit={generateForm.handleSubmit(handleGenerateSubmit)}>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <FormField label="目标类型">
+                  <Select {...generateForm.register('type')}>
+                    <option value="worldbuilding">世界观</option>
+                    <option value="character">角色</option>
+                    <option value="outline" disabled={!!outlineAsset}>大纲{outlineAsset ? '（已存在）' : ''}</option>
+                  </Select>
+                </FormField>
+              </div>
+              {outlineAsset && (
+                <p className="text-xs text-amber-600">已有大纲资产，如需细化请使用"AI 优化"功能</p>
+              )}
+              <FormField label="生成要求">
+                <Textarea rows={3} {...generateForm.register('instruction')} placeholder="描述你希望生成的资产内容" />
+              </FormField>
+              <div className="flex gap-2">
+                <Button type="submit" disabled={isStreaming} leftIcon={<Bot className="h-3.5 w-3.5" />}>发起生成</Button>
+                {isStreaming && <Button type="button" variant="danger" size="sm" onClick={cancelStreaming} leftIcon={<Square className="h-3.5 w-3.5" />}>取消</Button>}
+                {!isStreaming && <Button type="button" variant="ghost" size="sm" onClick={closeGenerateModal}>关闭</Button>}
+              </div>
+            </form>
+            {error && <ErrorState text={error} className="mt-4" />}
+            {isStreaming && (
+              <div className="mt-4 rounded-lg border border-[#E2E8F0] bg-muted p-4">
+                <LoadingState text="AI 正在整理最终资产预览..." className="w-full justify-center border-0 bg-transparent px-0 py-0 text-foreground" />
+                <p className="mt-2 text-center text-xs text-muted-foreground">生成完成后将在此处直接展示最终效果。</p>
+              </div>
             )}
-          </FormField>
-          {error && <ErrorState text={error} />}
-          <div className="flex gap-2">
-            <Button type="submit" loading={isAssetSubmitting}>
-              {editorMode.type === 'create' ? '保存资产' : '更新资产'}
-            </Button>
-            <Button type="button" variant="ghost" onClick={handleCancelEdit}>取消</Button>
+          </>
+        ) : (
+          /* Generated asset preview */
+          <div className="space-y-4">
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-4">
+              <div className="space-y-1 mb-4">
+                <p className="text-xs font-medium uppercase tracking-[0.12em] text-emerald-700">生成完成</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-base">{typeIcons[generatedAssetPreview.type]}</span>
+                  <h4 className="text-sm font-semibold text-foreground">{generatedAssetPreview.title}</h4>
+                  <Badge variant="success">{typeLabels[generatedAssetPreview.type]}</Badge>
+                </div>
+                <p className="text-sm text-emerald-700">以下为最终效果预览，可确认后再进入编辑。</p>
+              </div>
+              <div className="rounded-lg border border-white/80 bg-white p-4">
+                <AssetContentDisplay content={generatedAssetPreview.content} assetType={generatedAssetPreview.type} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" size="sm" onClick={closeGenerateModal}>关闭</Button>
+              <Button variant="secondary" size="sm" onClick={handleGenerateAgain}>继续生成</Button>
+              <Button size="sm" onClick={handleEditGeneratedAsset} leftIcon={<FilePenLine className="h-3.5 w-3.5" />}>
+                编辑资产
+              </Button>
+            </DialogFooter>
           </div>
-        </form>
-      </AssetEditorDrawer>
+        )}
+      </Dialog>
+
+      {/* AI Refine Modal */}
+      <Dialog
+        open={showRefineModal}
+        onClose={() => { if (!isStreaming) closeRefineModal() }}
+        title="AI 资产优化"
+        description={refineTarget ? `当前资产：${refineTarget.title}` : undefined}
+        size="xl"
+      >
+        {!refinedPreview ? (
+          <>
+            {refineTarget && (
+              <div className="mb-4">
+                <Badge variant="default">{typeLabels[refineTarget.type]}</Badge>
+              </div>
+            )}
+            <form className="space-y-4" onSubmit={refineForm.handleSubmit(handleRefineSubmit)}>
+              <FormField label="优化要求" error={refineForm.formState.errors.instruction?.message}>
+                <Textarea rows={3} {...refineForm.register('instruction')} placeholder="描述你希望 AI 优化的方向，例如补充细节、强化人物动机、梳理结构" />
+              </FormField>
+              <div className="flex gap-2">
+                <Button type="submit" disabled={isStreaming} leftIcon={<WandSparkles className="h-3.5 w-3.5" />}>
+                  开始优化
+                </Button>
+                {isStreaming && (
+                  <Button type="button" variant="danger" size="sm" onClick={cancelStreaming} leftIcon={<Square className="h-3.5 w-3.5" />}>
+                    取消
+                  </Button>
+                )}
+                {!isStreaming && <Button type="button" variant="ghost" size="sm" onClick={closeRefineModal}>关闭</Button>}
+              </div>
+            </form>
+            {error && <ErrorState text={error} className="mt-4" />}
+            {isStreaming && (
+              <div className="mt-4 rounded-lg border border-[#E2E8F0] bg-muted p-4">
+                <LoadingState text="AI 正在优化资产..." className="w-full justify-center border-0 bg-transparent px-0 py-0 text-foreground" />
+                <p className="mt-2 text-center text-xs text-muted-foreground">优化完成后可在此预览结果。</p>
+              </div>
+            )}
+          </>
+        ) : (
+          /* Refine preview with apply/discard */
+          <div className="space-y-4">
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-4">
+              <p className="text-xs font-medium uppercase tracking-[0.12em] text-emerald-700 mb-3">优化结果预览</p>
+              <div className="rounded-lg border border-white/80 bg-white p-4">
+                <AssetContentDisplay content={refinedPreview.content} assetType={refinedPreview.type} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" size="sm" onClick={handleDiscardRefine} leftIcon={<X className="h-3.5 w-3.5" />}>
+                放弃优化
+              </Button>
+              <Button variant="secondary" size="sm" onClick={handleRefineAgain} leftIcon={<RotateCcw className="h-3.5 w-3.5" />}>
+                重新优化
+              </Button>
+              <Button size="sm" onClick={handleApplyRefine} leftIcon={<Check className="h-3.5 w-3.5" />}>
+                应用优化
+              </Button>
+            </DialogFooter>
+          </div>
+        )}
+      </Dialog>
     </div>
   )
 }

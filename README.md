@@ -56,7 +56,8 @@ npm run dev
 |------|------|------|
 | `/` | HomePage | 项目仪表盘：统计卡片 + 三列看板（草稿/进行中/已归档） |
 | `/new-project` | InspirationPage | 新建项目中心：AI 组合创建或手动创建 |
-| `/projects/:id` | ProjectWorkbenchPage | 项目工作台：概览 / 设定工坊 / 章节 / 伏笔 / 记忆层 / Prompts / 知识图谱 / 指标 八个 Tab |
+| `/projects/:projectId` | ProjectWorkbenchPage | 项目工作台：概览 / 设定工坊 / 章节 / 记忆层 / Prompts / 知识图谱 / 指标（全屏，不含 AppShell） |
+| `/write/:chapterId` | WritePage | 沉浸式写作工作台：全屏编辑器 + 可折叠侧栏（全屏，不含 AppShell） |
 | `/settings` | SettingsPage | 全局设置：LLM Provider 管理 |
 | `*` | NotFoundPage | 404 |
 
@@ -74,7 +75,6 @@ src/
 │   ├── inspiration/        #   新建项目中心（组合式 + 手动创建）
 │   ├── assets/             #   资产管理（CRUD + AI 生成 + 结构化表单）
 │   ├── chapters/           #   章节编辑（Tiptap 编辑器 + AI 续写/改写 + AI 评审）
-│   ├── foreshadowing/      #   伏笔管理（时间线可视化 + CRUD）
 │   ├── knowledge-graph/    #   知识图谱（力导向图可视化 + 节点 CRUD + 同步）
 │   ├── metrics/            #   成本看板（统计卡片 + CSS 柱状图）
 │   ├── memory/             #   记忆工作区（状态/时间线/图谱三视图 + 关系编辑）
@@ -117,7 +117,6 @@ src/
 - **章节编辑**：Tiptap 富文本编辑器（排版/撤销/重做）、AI Ghost Text 续写建议、选中文本触发改写、草稿手动保存、当前稿确认/取消确认（有未保存编辑时禁用确认按钮，防止确认旧内容）
 - **章节生成**：AI 生成/续写/局部改写，流式输出
 - **记忆工作区**：三视图（角色状态 / 时间线 / 关系图谱）、按章节或最新状态浏览、结构化关系编辑、覆盖风险显式提示、图上交互式增删改关系（RelationModal）
-- **伏笔管理**：伏笔 CRUD + 时间线可视化（横轴章节序列、纵轴伏笔条目、颜色编码状态：planted 蓝/resolved 绿/overdue 红）
 - **章节评审**：AI 多维度评审面板（逻辑一致性/角色忠实度/节奏感/文笔质量 + 总评），评分进度条 + 颜色编码
 - **Prompt 管理**：查看/覆盖/重置项目级 Prompt 模板（后端对变量名做白名单校验，拒绝引用不存在的变量）
 - **LLM 配置**：Provider 增删改查、启用/禁用切换
@@ -160,7 +159,6 @@ src/
 
 | 原型 | 描述 | 差异 |
 |---|---|---|
-| `02-writing-workbench.html` | 沉浸式写作工作台 | 当前章节编辑嵌入在项目工作台 Tab 内，无独立全屏路由 |
 | `03-split-editor.html` | AI 分屏对比编辑器 | 当前改写以 popover 形式呈现，无 diff 高亮对比 |
 
 ## Roadmap
@@ -176,16 +174,15 @@ src/
 
 ### 近期：编辑器体验增强
 
-1. **沉浸式写作工作台** — 独立 `/write/:chapterId` 路由，全屏编辑器 + 可折叠侧栏（大纲导航、角色卡片、对话历史）。当前章节编辑嵌套在项目工作台 Tab 内，缺乏沉浸感。
-2. **AI 分屏对比编辑器** — 基于 Tiptap diff 扩展，左右并排展示原文与 AI 改写结果，新增内容绿色高亮、删除内容红色划线，支持逐段接受或拒绝。当前改写以 popover 形式呈现，无法直观对比。
+1. **AI 分屏对比编辑器** — 基于 Tiptap diff 扩展，左右并排展示原文与 AI 改写结果，新增内容绿色高亮、删除内容红色划线，支持逐段接受或拒绝。当前改写以 popover 形式呈现，无法直观对比。
 
 ### 已完成 ✓（Phase 2）
 
 | 项目 | 实现位置 |
 |------|----------|
 | **关系图交互编辑** | `features/memory/graph/relation-modal.tsx` 图上直接增删改关系 |
-| **伏笔时间线视图** | `features/foreshadowing/` 伏笔 CRUD + 章节序列时间线可视化 |
 | **章节质量评审面板** | `features/chapters/components/review-panel.tsx` AI 多维度评分展示 |
+| **沉浸式写作工作台** | `pages/write-page.tsx` 独立 `/write/:chapterId` 全屏路由 |
 
 ### 已完成 ✓（Phase 3）
 
@@ -200,3 +197,4 @@ src/
 ### 远期：高级交互
 
 6. **AI 修改消痕对比增强** — 在消痕润色基础上增加 diff 高亮标注修改位置，支持逐段选择性采纳。
+7. **伏笔管理** — 伏笔 CRUD + 时间线可视化（章节序列横轴、伏笔条目纵轴、状态颜色编码）。

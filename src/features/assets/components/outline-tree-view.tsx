@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useFieldArray, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ChevronDown, ChevronRight, FileText, Plus, ScrollText, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, FileText, Plus, ScrollText, Trash2, WandSparkles } from 'lucide-react'
 import {
   createDefaultChapter,
   createDefaultVolume,
@@ -23,9 +23,10 @@ type SelectedNode =
 type OutlineTreeViewProps = {
   defaultValues: OutlineData
   onChange: (data: OutlineData) => void
+  onRefineOutline?: () => void
 }
 
-export function OutlineTreeView({ defaultValues, onChange }: OutlineTreeViewProps) {
+export function OutlineTreeView({ defaultValues, onChange, onRefineOutline }: OutlineTreeViewProps) {
   const [selected, setSelected] = useState<SelectedNode>({ type: 'root' })
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set())
 
@@ -95,8 +96,8 @@ export function OutlineTreeView({ defaultValues, onChange }: OutlineTreeViewProp
 
   function removeChapter(volumeIndex: number, chapterIndex: number) {
     const values = getValues()
-    const chapters = values.volumes[volumeIndex].chapters
-    if (chapters.length <= 1) return
+    const chapters = values.volumes[volumeIndex]?.chapters ?? []
+    if (!chapters[chapterIndex]) return
     setValue(
       `volumes.${volumeIndex}.chapters`,
       chapters.filter((_, i) => i !== chapterIndex),
@@ -225,6 +226,19 @@ export function OutlineTreeView({ defaultValues, onChange }: OutlineTreeViewProp
 
       {/* ── Editor panel ── */}
       <div className="flex-1 overflow-y-auto p-5" onChange={emitChange}>
+        {onRefineOutline && (
+          <div className="mb-4 flex justify-end">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={onRefineOutline}
+              leftIcon={<WandSparkles className="h-3.5 w-3.5" />}
+            >
+              AI 优化大纲
+            </Button>
+          </div>
+        )}
         {selected.type === 'root' && <RootEditor register={register} defaultThemes={defaultValues.themes} />}
         {selected.type === 'volume' && (
           <VolumeEditor
@@ -241,7 +255,6 @@ export function OutlineTreeView({ defaultValues, onChange }: OutlineTreeViewProp
             chapterIndex={selected.chapterIndex}
             ordinal={volumes[selected.volumeIndex]?.chapters?.[selected.chapterIndex]?.ordinal}
             register={register}
-            canRemove={(volumes[selected.volumeIndex]?.chapters?.length ?? 0) > 1}
             onRemove={() => removeChapter(selected.volumeIndex, selected.chapterIndex)}
           />
         )}
@@ -341,14 +354,12 @@ function ChapterEditor({
   chapterIndex: ci,
   ordinal,
   register,
-  canRemove,
   onRemove,
 }: {
   volumeIndex: number
   chapterIndex: number
   ordinal?: number
   register: RegisterFn
-  canRemove: boolean
   onRemove: () => void
 }) {
   return (
@@ -360,7 +371,6 @@ function ChapterEditor({
           variant="ghost"
           size="sm"
           className="text-red-500 hover:text-red-600 hover:bg-red-50"
-          disabled={!canRemove}
           onClick={onRemove}
           leftIcon={<Trash2 className="h-3 w-3" />}
         >

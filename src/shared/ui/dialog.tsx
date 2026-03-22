@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import { X } from 'lucide-react'
 import { cn } from '@/shared/lib/cn'
@@ -18,7 +19,7 @@ export function Dialog({
   description?: string
   children: ReactNode
   className?: string
-  size?: 'sm' | 'md' | 'lg'
+  size?: 'sm' | 'md' | 'lg' | 'xl'
 }) {
   const dialogRef = useRef<HTMLDivElement>(null)
 
@@ -50,11 +51,12 @@ export function Dialog({
     sm: 'max-w-sm',
     md: 'max-w-md',
     lg: 'max-w-lg',
+    xl: 'max-w-2xl',
   }
 
   if (!open) return null
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <motion.div
         initial={{ opacity: 0 }}
@@ -69,7 +71,7 @@ export function Dialog({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: 0.15, ease: 'easeOut' }}
         className={cn(
-          'relative w-full rounded-lg border border-border bg-card p-6',
+          'relative w-full rounded-lg border border-border bg-card p-6 max-h-[85vh] overflow-y-auto',
           sizeClasses[size],
           className,
         )}
@@ -95,7 +97,8 @@ export function Dialog({
 
         {children}
       </motion.div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
