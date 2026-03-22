@@ -15,7 +15,7 @@ import {
 } from './outline-schema'
 
 export type StructuredContent = CharacterData | WorldbuildingData | OutlineData
-export type ContentFormat = 'structured' | 'plain'
+export type ContentFormat = 'structured' | 'plain' | 'schema_mismatch'
 export { ASSET_TYPE_TO_SCHEMA }
 
 /** AssetType → Zod schema 的唯一映射。 */
@@ -33,6 +33,7 @@ export function detectContentFormat(content: string, assetType: AssetType): Cont
     const parsed = JSON.parse(content)
     if (parsed && typeof parsed === 'object' && '_schema' in parsed) {
       if (parsed._schema === ASSET_TYPE_TO_SCHEMA[assetType]) return 'structured'
+      return 'schema_mismatch'
     }
   } catch {
     // not JSON
@@ -84,7 +85,7 @@ export function createDefaultStructuredContent(assetType: AssetType): Structured
 }
 
 /**
- * 将旧版纯文本迁移为结构化内容（原文移入 notes 字段）。
+ * 将旧版纯文本迁移为结构化内容（原文移入最合适的字段）。
  */
 export function migrateToStructured(
   plainText: string,
@@ -92,7 +93,14 @@ export function migrateToStructured(
 ): StructuredContent | null {
   const base = createDefaultStructuredContent(assetType)
   if (!base) return null
-  return { ...base, notes: plainText }
+  switch (assetType) {
+    case 'character':
+      return { ...base, backstory: plainText } as StructuredContent
+    case 'worldbuilding':
+      return { ...base, history: plainText } as StructuredContent
+    default:
+      return { ...base, notes: plainText } as StructuredContent
+  }
 }
 
 /**

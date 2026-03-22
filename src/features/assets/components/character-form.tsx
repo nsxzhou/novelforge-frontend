@@ -33,15 +33,9 @@ export function CharacterForm({ defaultValues, onChange }: CharacterFormProps) {
         ) : null}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <label className="mb-1 block text-sm font-medium text-foreground">年龄</label>
-          <Input {...register('age')} placeholder="例如：25" />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium text-foreground">性别</label>
-          <Input {...register('gender')} placeholder="例如：男 / 女 / 其他" />
-        </div>
+      <div>
+        <label className="mb-1 block text-sm font-medium text-foreground">性别</label>
+        <Input {...register('gender')} placeholder="例如：男、女" />
       </div>
 
       <div>
@@ -61,28 +55,8 @@ export function CharacterForm({ defaultValues, onChange }: CharacterFormProps) {
       </div>
 
       <div>
-        <label className="mb-1 block text-sm font-medium text-foreground">外貌</label>
-        <Textarea rows={2} {...register('appearance')} placeholder="外貌描述" />
-      </div>
-
-      <div>
-        <label className="mb-1 block text-sm font-medium text-foreground">口头禅</label>
-        <Input {...register('catchphrase')} placeholder="角色的口头禅或标志性台词" />
-      </div>
-
-      <div>
         <label className="mb-1 block text-sm font-medium text-foreground">背景故事</label>
         <Textarea rows={3} {...register('backstory')} placeholder="角色的过往经历" />
-      </div>
-
-      <div>
-        <label className="mb-1 block text-sm font-medium text-foreground">人物关系</label>
-        <Textarea rows={2} {...register('relationships')} placeholder="与其他角色的关系" />
-      </div>
-
-      <div>
-        <label className="mb-1 block text-sm font-medium text-foreground">备注</label>
-        <Textarea rows={2} {...register('notes')} placeholder="其他补充信息" />
       </div>
     </div>
   )

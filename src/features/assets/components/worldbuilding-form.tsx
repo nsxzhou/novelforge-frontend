@@ -23,12 +23,8 @@ export function WorldbuildingForm({ defaultValues, onChange }: WorldbuildingForm
     { name: 'geography', label: '地理', placeholder: '地形、气候、重要地标' },
     { name: 'politics', label: '政治', placeholder: '政权结构、重要势力' },
     { name: 'magic_system', label: '魔法体系', placeholder: '魔法规则、能量来源' },
-    { name: 'technology_level', label: '科技水平', placeholder: '科技发展程度、代表性发明' },
     { name: 'culture', label: '文化', placeholder: '习俗、语言、艺术' },
     { name: 'history', label: '历史', placeholder: '重大历史事件、年表' },
-    { name: 'economy', label: '经济', placeholder: '贸易体系、货币、产业' },
-    { name: 'religion', label: '宗教', placeholder: '信仰体系、神明、仪式' },
-    { name: 'notes', label: '备注', placeholder: '其他补充信息' },
   ]
 
   return (

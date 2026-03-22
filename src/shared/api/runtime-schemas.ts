@@ -73,7 +73,7 @@ export const chapterGenerationResponseSchema = z.object({
 })
 
 export const assetGenerationResponseSchema = z.object({
-  asset: assetSchema,
+  assets: z.array(assetSchema),
   generation_record: generationRecordSchema,
 })
 

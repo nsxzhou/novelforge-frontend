@@ -96,10 +96,10 @@ describe('AssetsPanel', () => {
     expect(screen.getByText('AI 正在整理最终资产预览...')).toBeTruthy()
 
     await act(async () => {
-      streamCallbacks?.onContent('{"_schema":"character_v1","name":"苏砚"}')
+      streamCallbacks?.onContent('{"_schema":"character_v2","name":"苏砚"}')
     })
 
-    expect(screen.queryByText('{"_schema":"character_v1","name":"苏砚"}')).toBeNull()
+    expect(screen.queryByText('{"_schema":"character_v2","name":"苏砚"}')).toBeNull()
   })
 
   it('shows structured preview after generation completes without auto-opening the editor', async () => {
@@ -111,19 +111,14 @@ describe('AssetsPanel', () => {
       type: 'character',
       title: '主角人设',
       content: JSON.stringify({
-        _schema: 'character_v1',
+        _schema: 'character_v2',
         name: '苏砚',
-        age: '19',
         gender: '女',
         personality_tags: ['冷静', '克制'],
         motivation: '查清家族真相',
-        appearance: '',
-        catchphrase: '',
         backstory: '',
-        relationships: '',
-        notes: '',
       }),
-      content_schema: 'character_v1',
+      content_schema: 'character_v2',
       created_at: '2026-03-19T10:00:00Z',
       updated_at: '2026-03-19T10:00:00Z',
     }
@@ -131,7 +126,7 @@ describe('AssetsPanel', () => {
 
     await act(async () => {
       await streamCallbacks?.onDone({
-        asset: generatedAsset,
+        assets: [generatedAsset],
         generation_record: {
           id: 'gen-1',
           project_id: 'project-1',
@@ -148,7 +143,7 @@ describe('AssetsPanel', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByText('生成完成')).toBeTruthy()
+      expect(screen.getByText('生成完成 · 1 个资产')).toBeTruthy()
     })
 
     expect(screen.getAllByText('苏砚').length).toBeGreaterThan(0)
@@ -166,19 +161,14 @@ describe('AssetsPanel', () => {
       type: 'character',
       title: '主角人设',
       content: JSON.stringify({
-        _schema: 'character_v1',
+        _schema: 'character_v2',
         name: '苏砚',
-        age: '19',
         gender: '女',
         personality_tags: ['冷静'],
         motivation: '查清家族真相',
-        appearance: '',
-        catchphrase: '',
         backstory: '',
-        relationships: '',
-        notes: '',
       }),
-      content_schema: 'character_v1',
+      content_schema: 'character_v2',
       created_at: '2026-03-19T10:00:00Z',
       updated_at: '2026-03-19T10:00:00Z',
     }
@@ -186,7 +176,7 @@ describe('AssetsPanel', () => {
 
     await act(async () => {
       await streamCallbacks?.onDone({
-        asset: generatedAsset,
+        assets: [generatedAsset],
         generation_record: {
           id: 'gen-2',
           project_id: 'project-1',
@@ -249,7 +239,7 @@ describe('AssetsPanel', () => {
 
     await act(async () => {
       await refineCallbacks?.onDone({
-        asset: refinedAsset,
+        assets: [refinedAsset],
         generation_record: {
           id: 'gen-3',
           project_id: 'project-1',

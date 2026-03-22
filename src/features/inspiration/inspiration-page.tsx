@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   createGuidedProject,
   createProject,
+  type BrainstormResult,
   type GuidedCreateInput,
   type GuidedProjectInput,
 } from '@/shared/api/projects'
@@ -85,7 +86,7 @@ export function InspirationPage() {
     setWizardStep('discussion')
   }
 
-  function handleBrainstormComplete(result: { discussion_summary: string; candidates: GuidedProjectCandidate[] }) {
+  function handleBrainstormComplete(result: BrainstormResult) {
     setDiscussionSummary(result.discussion_summary)
     setCandidates(result.candidates)
     setSelectedIndex(0)

@@ -93,7 +93,7 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
   const [deleteTarget, setDeleteTarget] = useState<Asset | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isStreaming, setIsStreaming] = useState(false)
-  const [generatedAssetPreview, setGeneratedAssetPreview] = useState<Asset | null>(null)
+  const [generatedAssetPreview, setGeneratedAssetPreview] = useState<Asset[] | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const outlineSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const queryClient = useQueryClient()
@@ -256,10 +256,10 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
       onDone: async (result: AssetGenerationResponse) => {
         abortRef.current = null
         setIsStreaming(false)
-        setGeneratedAssetPreview(result.asset)
+        setGeneratedAssetPreview(result.assets)
         generateForm.reset(defaultGenerateValue)
         await refreshAssets()
-        toast('AI 资产已生成，可先预览再决定是否编辑')
+        toast(`AI 已生成 ${result.assets.length} 个资产，可先预览再决定是否编辑`)
       },
       onError: (errMsg: string) => {
         abortRef.current = null
@@ -271,9 +271,10 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
   }
 
   function handleEditGeneratedAsset() {
-    if (!generatedAssetPreview) return
+    if (!generatedAssetPreview || generatedAssetPreview.length === 0) return
+    const first = generatedAssetPreview[0]
     closeGenerateModal()
-    startEditing(generatedAssetPreview)
+    startEditing(first)
   }
 
   function handleGenerateAgain() {
@@ -320,7 +321,7 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
       onDone: async (result: AssetGenerationResponse) => {
         abortRef.current = null
         setIsStreaming(false)
-        setRefinedPreview(result.asset)
+        setRefinedPreview(result.assets[0])
         refineForm.reset(defaultRefineValue)
         await refreshAssets()
       },
@@ -676,24 +677,32 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
           <div className="space-y-4">
             <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-4">
               <div className="space-y-1 mb-4">
-                <p className="text-xs font-medium uppercase tracking-[0.12em] text-emerald-700">生成完成</p>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-base">{typeIcons[generatedAssetPreview.type]}</span>
-                  <h4 className="text-sm font-semibold text-foreground">{generatedAssetPreview.title}</h4>
-                  <Badge variant="success">{typeLabels[generatedAssetPreview.type]}</Badge>
-                </div>
+                <p className="text-xs font-medium uppercase tracking-[0.12em] text-emerald-700">
+                  生成完成 · {generatedAssetPreview.length} 个资产
+                </p>
                 <p className="text-sm text-emerald-700">以下为最终效果预览，可确认后再进入编辑。</p>
               </div>
-              <div className="rounded-lg border border-white/80 bg-white p-4">
-                <AssetContentDisplay content={generatedAssetPreview.content} assetType={generatedAssetPreview.type} />
+              <div className="space-y-3">
+                {generatedAssetPreview.map((asset) => (
+                  <div key={asset.id} className="rounded-lg border border-white/80 bg-white p-4">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <span className="text-base">{typeIcons[asset.type]}</span>
+                      <h4 className="text-sm font-semibold text-foreground">{asset.title}</h4>
+                      <Badge variant="success">{typeLabels[asset.type]}</Badge>
+                    </div>
+                    <AssetContentDisplay content={asset.content} assetType={asset.type} />
+                  </div>
+                ))}
               </div>
             </div>
             <DialogFooter>
               <Button variant="ghost" size="sm" onClick={closeGenerateModal}>关闭</Button>
               <Button variant="secondary" size="sm" onClick={handleGenerateAgain}>继续生成</Button>
-              <Button size="sm" onClick={handleEditGeneratedAsset} leftIcon={<FilePenLine className="h-3.5 w-3.5" />}>
-                编辑资产
-              </Button>
+              {generatedAssetPreview.length === 1 ? (
+                <Button size="sm" onClick={handleEditGeneratedAsset} leftIcon={<FilePenLine className="h-3.5 w-3.5" />}>
+                  编辑资产
+                </Button>
+              ) : null}
             </DialogFooter>
           </div>
         )}

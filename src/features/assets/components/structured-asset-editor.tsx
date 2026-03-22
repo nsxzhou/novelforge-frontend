@@ -115,7 +115,7 @@ export function StructuredAssetEditor({ assetType, content, onChange }: Structur
       )
     }
 
-    if (!structured && rawContent.trim() !== '' && format === 'structured') {
+    if (!structured && rawContent.trim() !== '' && format !== 'plain') {
       return (
         <div className="space-y-3">
           <div className="rounded-md border border-red-200 bg-red-50 p-3">

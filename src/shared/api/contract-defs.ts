@@ -15,15 +15,10 @@ export const relationTypeSchema = z.enum(relationTypeValues)
 export const characterSeedSchema = z.object({
   _schema: z.literal(ASSET_TYPE_TO_SCHEMA.character),
   name: z.string(),
-  age: z.string().optional(),
   gender: z.string().optional(),
   personality_tags: z.array(z.string()).optional(),
   motivation: z.string().optional(),
-  appearance: z.string().optional(),
-  catchphrase: z.string().optional(),
   backstory: z.string().optional(),
-  relationships: z.string().optional(),
-  notes: z.string().optional(),
 })
 
 export const worldbuildingSeedSchema = z.object({
@@ -31,12 +26,8 @@ export const worldbuildingSeedSchema = z.object({
   geography: z.string().optional(),
   politics: z.string().optional(),
   magic_system: z.string().optional(),
-  technology_level: z.string().optional(),
   culture: z.string().optional(),
   history: z.string().optional(),
-  economy: z.string().optional(),
-  religion: z.string().optional(),
-  notes: z.string().optional(),
 })
 
 export const outlineChapterSeedSchema = z.object({

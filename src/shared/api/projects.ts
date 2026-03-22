@@ -1,6 +1,12 @@
 import { request } from '@/shared/api/http-client'
 import { parseJsonWithSchema, streamRequestWithSchema, type SSECallbacks } from '@/shared/api/sse-client'
-import type { GuidedProjectCandidate, Project, ProjectListItem, ProjectStatus, Asset } from '@/shared/api/types'
+import type {
+  Asset,
+  GuidedProjectCandidate,
+  Project,
+  ProjectListItem,
+  ProjectStatus,
+} from '@/shared/api/types'
 import { brainstormEventSchema, brainstormResultSchema } from '@/shared/api/runtime-schemas'
 
 type ProjectListResponse = { projects: ProjectListItem[] }

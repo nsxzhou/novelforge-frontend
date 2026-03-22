@@ -10,13 +10,22 @@ import {
 describe('asset-content helpers', () => {
   it('detects structured content when schema matches the asset type', () => {
     const content = JSON.stringify({
-      _schema: 'character_v1',
+      _schema: 'character_v2',
       name: '主角',
       personality_tags: ['冷静'],
     })
 
     expect(detectContentFormat(content, 'character')).toBe('structured')
-    expect(detectContentFormat(content, 'outline')).toBe('plain')
+    expect(detectContentFormat(content, 'outline')).toBe('schema_mismatch')
+  })
+
+  it('marks old schema payloads as schema mismatch', () => {
+    const content = JSON.stringify({
+      _schema: 'character_v1',
+      name: '旧主角',
+    })
+
+    expect(detectContentFormat(content, 'character')).toBe('schema_mismatch')
   })
 
   it('parses and serializes structured content with schema defaults', () => {
@@ -113,8 +122,8 @@ describe('asset-content helpers', () => {
   it('migrates plain text into the notes field of structured content', () => {
     const migrated = migrateToStructured('旧版角色设定正文', 'worldbuilding')
     expect(migrated).toMatchObject({
-      _schema: 'worldbuilding_v1',
-      notes: '旧版角色设定正文',
+      _schema: 'worldbuilding_v2',
+      history: '旧版角色设定正文',
     })
   })
 

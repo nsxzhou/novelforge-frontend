@@ -39,8 +39,9 @@ function CharacterDisplay({ data }: { data: CharacterData }) {
     <div className="mt-3 space-y-2 text-sm">
       <div className="flex items-center gap-2">
         <span className="font-semibold text-foreground">{data.name}</span>
-        {data.age ? <span className="text-muted-foreground">{data.age}岁</span> : null}
-        {data.gender ? <span className="text-muted-foreground">{data.gender}</span> : null}
+        {data.gender ? (
+          <span className="text-muted-foreground">({data.gender})</span>
+        ) : null}
       </div>
 
       {tags.length > 0 ? <TagList tags={tags} /> : null}
@@ -48,20 +49,8 @@ function CharacterDisplay({ data }: { data: CharacterData }) {
       {data.motivation ? (
         <FieldDisplay label="动机" value={data.motivation} />
       ) : null}
-      {data.appearance ? (
-        <FieldDisplay label="外貌" value={data.appearance} />
-      ) : null}
-      {data.catchphrase ? (
-        <FieldDisplay label="口头禅" value={data.catchphrase} />
-      ) : null}
       {data.backstory ? (
         <FieldDisplay label="背景" value={data.backstory} />
-      ) : null}
-      {data.relationships ? (
-        <FieldDisplay label="人物关系" value={data.relationships} />
-      ) : null}
-      {data.notes ? (
-        <FieldDisplay label="备注" value={data.notes} />
       ) : null}
     </div>
   )
@@ -72,12 +61,8 @@ function WorldbuildingDisplay({ data }: { data: WorldbuildingData }) {
     { key: 'geography', label: '地理' },
     { key: 'politics', label: '政治' },
     { key: 'magic_system', label: '魔法体系' },
-    { key: 'technology_level', label: '科技水平' },
     { key: 'culture', label: '文化' },
     { key: 'history', label: '历史' },
-    { key: 'economy', label: '经济' },
-    { key: 'religion', label: '宗教' },
-    { key: 'notes', label: '备注' },
   ]
 
   const populated = fields.filter((f) => {

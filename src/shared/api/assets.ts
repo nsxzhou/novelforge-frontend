@@ -4,7 +4,7 @@ import type { Asset, AssetType, GenerationRecord } from '@/shared/api/types'
 import { assetGenerationResponseSchema } from '@/shared/api/runtime-schemas'
 
 type AssetListResponse = { assets: Asset[] }
-export type AssetGenerationResponse = { asset: Asset; generation_record: GenerationRecord }
+export type AssetGenerationResponse = { assets: Asset[]; generation_record: GenerationRecord }
 
 export type UpsertAssetInput = {
   type: AssetType
